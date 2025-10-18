@@ -14,7 +14,7 @@ import { toast } from "sonner"
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const returnUrl = searchParams.get("returnUrl") || "/"
+  const returnUrl = searchParams.get("returnUrl") || "/perfil"
   
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
