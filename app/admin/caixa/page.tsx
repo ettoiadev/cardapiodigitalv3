@@ -53,19 +53,19 @@ export default function CaixaPage() {
       setLoading(true)
       
       // Buscar caixa aberto
-      const { data: caixa, error: caixaError } = await supabase
+      const { data: caixas, error: caixaError } = await supabase
         .from("caixa")
         .select("*")
         .eq("status", "aberto")
         .order("data_abertura", { ascending: false })
         .limit(1)
-        .single()
 
-      if (caixaError && caixaError.code !== 'PGRST116') {
+      if (caixaError) {
         throw caixaError
       }
 
-      setCaixaAtual(caixa || null)
+      const caixa = caixas && caixas.length > 0 ? caixas[0] : null
+      setCaixaAtual(caixa)
 
       if (caixa) {
         await loadLancamentos(caixa.id)
