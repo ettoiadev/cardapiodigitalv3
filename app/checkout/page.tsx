@@ -14,6 +14,7 @@ import { useCart } from "@/lib/cart-context"
 import { useConfig } from "@/lib/config-context"
 import { formatCurrency } from "@/lib/currency-utils"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { getUser } from "@/lib/auth-helpers"
 
 interface StoreConfig {
   nome: string
@@ -98,6 +99,31 @@ export default function CheckoutPage() {
   const [orderNotes, setOrderNotes] = useState("")
   const [paymentMethod, setPaymentMethod] = useState<"pix" | "dinheiro" | "debito" | "credito" | "ticket_alimentacao">("pix")
   
+  // Carregar dados do usuário autenticado
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const { data: user } = await getUser()
+        if (user && user.user_metadata) {
+          // Preencher dados do formulário com dados do usuário
+          if (user.user_metadata.nome) {
+            setCustomerName(user.user_metadata.nome)
+          }
+          if (user.user_metadata.telefone) {
+            setCustomerPhone(user.user_metadata.telefone)
+          }
+          if (user.email) {
+            // Pode adicionar campo de email se necessário
+          }
+          console.log("✅ Dados do usuário carregados:", user.user_metadata)
+        }
+      } catch (error) {
+        console.log("ℹ️ Usuário não autenticado ou erro ao carregar dados")
+      }
+    }
+    loadUserData()
+  }, [])
+
     // Carregar configurações da loja e produtos
   useEffect(() => {
     const loadData = async () => {

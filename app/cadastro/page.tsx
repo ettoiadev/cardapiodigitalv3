@@ -112,9 +112,9 @@ export default function CadastroPage() {
       toast.success("Cadastro realizado com sucesso!")
       toast.info("Você já pode fazer login")
       
-      // Redirecionar para login
+      // Redirecionar para login com returnUrl para checkout
       setTimeout(() => {
-        router.push("/login")
+        router.push("/login?returnUrl=/checkout")
       }, 1500)
 
     } catch (error: any) {
