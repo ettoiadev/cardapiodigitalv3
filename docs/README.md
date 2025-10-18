@@ -37,6 +37,33 @@ Conteúdo:
 - 🔧 Configuração do TypeScript
 - 🐛 Troubleshooting
 
+### 4. [Refactoring Summary](./REFACTORING_SUMMARY.md)
+**Documentação completa das refatorações aplicadas**
+
+Conteúdo:
+- 🔧 Todos os arquivos refatorados
+- 📊 Métricas de melhoria
+- 🎯 Princípios Clean Code aplicados
+- ✨ Antes e depois de cada mudança
+
+### 5. [Bug Analysis](./BUG_ANALYSIS.md)
+**Análise profunda de bugs e problemas potenciais**
+
+Conteúdo:
+- 🐛 15 bugs críticos identificados
+- ⚠️ 23 problemas de qualidade
+- 🔍 Estratégias de debug
+- 📝 Checklist de correções
+
+### 6. [Fixes Applied](./FIXES_APPLIED.md)
+**Correções de bugs aplicadas ao código**
+
+Conteúdo:
+- ✅ 5 bugs críticos corrigidos
+- 📊 Métricas de impacto
+- 🧪 Testes recomendados
+- 📝 Ações pendentes
+
 ---
 
 ## 🏗️ Estrutura do Projeto
