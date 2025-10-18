@@ -6,7 +6,7 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Minus, CreditCard, Banknote, Check } from "lucide-react"
+import { Plus, Minus, CreditCard, Banknote, Check, User, LogIn } from "lucide-react"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 import { useCart } from "@/lib/cart-context"
 import { useConfig } from "@/lib/config-context"
@@ -15,6 +15,15 @@ import { CartFooter } from "@/components/cart-footer"
 import { SocialFooter } from "@/components/social-footer"
 import { HomepageCarousel } from "@/components/homepage-carousel"
 import { formatCurrency } from "@/lib/currency-utils"
+import { getUser } from "@/lib/auth-helpers"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface PizzariaConfig {
   id: string
@@ -100,6 +109,10 @@ function HomePageContent() {
 
   // Estados para seleção de tamanho por pizza
   const [selectedSizes, setSelectedSizes] = useState<{ [pizzaId: string]: "tradicional" | "broto" }>({})
+
+  // Estado para autenticação do usuário
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [userName, setUserName] = useState<string | null>(null)
 
   const { dispatch, state: cartState } = useCart()
   const { config: pizzariaConfig } = useConfig()
@@ -225,7 +238,25 @@ function HomePageContent() {
 
   useEffect(() => {
     loadData()
+    checkAuthentication()
   }, [])
+
+  // Verificar autenticação do usuário
+  const checkAuthentication = async () => {
+    try {
+      const { data: user } = await getUser()
+      if (user && user.user_metadata) {
+        setIsAuthenticated(true)
+        setUserName(user.user_metadata.nome || user.email || "Usuário")
+      } else {
+        setIsAuthenticated(false)
+        setUserName(null)
+      }
+    } catch (error) {
+      setIsAuthenticated(false)
+      setUserName(null)
+    }
+  }
 
   // Atualizar status da pizzaria a cada minuto
   useEffect(() => {
@@ -744,12 +775,6 @@ function HomePageContent() {
                 <div className="text-xs text-gray-600">minutos</div>
               </div>
 
-              {/* Valor Mínimo */}
-              <div className="flex flex-col items-center flex-shrink-0">
-                <div className="text-sm font-medium text-gray-900">{formatCurrency(config?.valor_minimo)}</div>
-                <div className="text-xs text-gray-600">mínimo</div>
-              </div>
-
               {/* Formas de Pagamento */}
               <div className="flex flex-col items-center flex-shrink-0">
                 <div className="flex justify-center items-center gap-x-1 mb-1">
@@ -757,6 +782,65 @@ function HomePageContent() {
                   {config?.aceita_cartao && <CreditCard className="w-4 h-4 text-gray-700" />}
                 </div>
                 <div className="text-xs text-gray-600">pagamento</div>
+              </div>
+
+              {/* Menu de Perfil do Usuário */}
+              <div className="flex flex-col items-center flex-shrink-0">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <User className="h-4 w-4 text-gray-700" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    {isAuthenticated ? (
+                      <>
+                        <DropdownMenuLabel className="font-normal">
+                          <div className="flex flex-col space-y-1">
+                            <p className="text-sm font-medium leading-none">{userName}</p>
+                            <p className="text-xs leading-none text-muted-foreground">
+                              Cliente
+                            </p>
+                          </div>
+                        </DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => router.push("/perfil")}>
+                          <User className="mr-2 h-4 w-4" />
+                          Meu Perfil
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.push("/meus-pedidos")}>
+                          <Check className="mr-2 h-4 w-4" />
+                          Meus Pedidos
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={async () => {
+                            await supabase.auth.signOut()
+                            setIsAuthenticated(false)
+                            setUserName(null)
+                            router.push("/")
+                          }}
+                          className="text-red-600"
+                        >
+                          <LogIn className="mr-2 h-4 w-4" />
+                          Sair
+                        </DropdownMenuItem>
+                      </>
+                    ) : (
+                      <>
+                        <DropdownMenuItem onClick={() => router.push("/login")}>
+                          <LogIn className="mr-2 h-4 w-4" />
+                          Fazer Login
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.push("/cadastro")}>
+                          <User className="mr-2 h-4 w-4" />
+                          Criar Conta
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <div className="text-xs text-gray-600">perfil</div>
               </div>
             </div>
 
