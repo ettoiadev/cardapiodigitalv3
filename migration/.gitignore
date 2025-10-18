@@ -1,0 +1,35 @@
+# Diretório de dados exportados
+data/
+
+# Arquivos de dados JSON
+*.json
+
+# Exceto package.json e arquivos de template
+!package.json
+
+# Node modules
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Arquivos de ambiente
+.env
+.env.local
+.env.*.local
+
+# Backups
+*.backup
+*.bak
+*.sql.backup
+
+# Arquivos temporários
+*.tmp
+*.temp
+
+# Relatórios (descomentar se quiser commitar)
+# !data/*-report.json
+# !data/metadata.json

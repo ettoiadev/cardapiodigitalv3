@@ -1,0 +1,32 @@
+{
+  "name": "cardapio-digital-migration",
+  "version": "1.0.0",
+  "description": "Scripts de migração de banco de dados - Cardápio Digital v3",
+  "private": true,
+  "scripts": {
+    "export": "node export-data.js",
+    "import": "node import-data.js",
+    "import:dry-run": "node import-data.js --dry-run",
+    "validate": "node validate-migration.js",
+    "schema:export": "echo 'Execute: psql -h <host> -U <user> -d <db> -f export-schema.sql'"
+  },
+  "keywords": [
+    "migration",
+    "database",
+    "postgresql",
+    "supabase"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.3.1",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "chalk": "^4.1.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
