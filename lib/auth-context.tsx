@@ -112,19 +112,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const adminData = data[0]
       console.log("👤 Admin encontrado:", adminData)
-      console.log("🔑 Senha no banco:", adminData.senha)
-      console.log("🔑 Senha fornecida:", senha)
+      console.log("🔑 Verificando senha com bcrypt...")
 
-      // IMPORTANTE: Em produção, implementar verificação de hash de senha segura
-      // Por enquanto, verificação simplificada - DEVE SER ALTERADO PARA PRODUÇÃO
-      // console.warn("⚠️ ATENÇÃO: Sistema de autenticação simplificado - implementar hash de senha para produção")
-      
-      // Verificar senha (substituir por verificação de hash em produção)
-      if (adminData.senha !== senha) {
-        console.error("❌ Erro: Senha incorreta")
-        console.log("🔍 Comparação: banco='", adminData.senha, "' vs fornecida='", senha, "'")
+      // Verificar senha usando a função PostgreSQL com bcrypt
+      const { data: passwordCheck, error: passwordError } = await supabase
+        .rpc('verify_admin_password', {
+          admin_email: email,
+          password_input: senha
+        })
+
+      if (passwordError) {
+        console.error("❌ Erro ao verificar senha:", passwordError)
         return false
       }
+
+      if (!passwordCheck) {
+        console.error("❌ Erro: Senha incorreta")
+        return false
+      }
+
+      console.log("✅ Senha verificada com sucesso")
 
       const responseAdminData = {
         id: adminData.id,
