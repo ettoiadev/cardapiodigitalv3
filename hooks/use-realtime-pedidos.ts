@@ -3,7 +3,7 @@
  * @module use-realtime-pedidos
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 
 /**
@@ -76,12 +76,18 @@ interface Pedido {
  */
 export function useRealtimePedidos(initialPedidos: Pedido[] = []) {
   const [pedidos, setPedidos] = useState<Pedido[]>(initialPedidos)
+  const isInitialized = useRef(false)
 
+  // Atualiza estado apenas na primeira vez que recebe dados
   useEffect(() => {
-    // Atualizar estado inicial
-    setPedidos(initialPedidos)
+    if (!isInitialized.current && initialPedidos.length > 0) {
+      setPedidos(initialPedidos)
+      isInitialized.current = true
+    }
+  }, [initialPedidos])
 
-    // Criar canal para escutar mudanças
+  // Configura realtime - executa apenas uma vez
+  useEffect(() => {
     const channel = supabase
       .channel('pedidos-changes')
       .on(
@@ -93,7 +99,14 @@ export function useRealtimePedidos(initialPedidos: Pedido[] = []) {
         },
         (payload) => {
           console.log('Novo pedido:', payload.new)
-          setPedidos(prev => [payload.new as Pedido, ...prev])
+          setPedidos(prev => {
+            // Evita duplicação
+            const novoPedido = payload.new as Pedido
+            if (prev.some(p => p.id === novoPedido.id)) {
+              return prev
+            }
+            return [novoPedido, ...prev]
+          })
         }
       )
       .on(
@@ -127,7 +140,7 @@ export function useRealtimePedidos(initialPedidos: Pedido[] = []) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [initialPedidos])
+  }, []) // Executa apenas na montagem/desmontagem
 
   return pedidos
 }
