@@ -6,7 +6,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
-import { LogOut, Settings, Package, Home, Menu, X } from "lucide-react"
+import { LogOut, Settings, Package, Home, Menu, X, Users } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -37,6 +37,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const menuItems = [
     { href: "/admin", icon: Home, label: "Dashboard" },
     { href: "/admin/produtos", icon: Package, label: "Produtos" },
+    { href: "/admin/clientes", icon: Users, label: "Clientes" },
     { href: "/admin/config", icon: Settings, label: "Configurações" },
   ]
 
