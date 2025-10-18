@@ -88,8 +88,12 @@ function LoginForm() {
       if (session && session.user) {
         console.log("✅ Sessão confirmada! Redirecionando para:", returnUrl)
         
-        // Usar window.location.href para garantir navegação completa
-        window.location.href = returnUrl
+        // CORREÇÃO: Usar router do Next.js para evitar erro de message channel
+        // Aguardar um pequeno delay para o toast ser visível
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        // Redirecionar usando Next.js router
+        router.push(returnUrl)
       } else {
         console.error("❌ Sessão não disponível após login!")
         toast.error("Erro ao estabelecer sessão. Tente novamente.")
