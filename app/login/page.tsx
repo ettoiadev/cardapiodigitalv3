@@ -56,29 +56,40 @@ function LoginForm() {
     setLoading(true)
 
     try {
+      console.log("🔐 Iniciando login com:", { email: formData.email, returnUrl })
+      
       const { data, error } = await signIn({
         email: formData.email,
         senha: formData.senha
       })
 
       if (error) {
+        console.error("❌ Erro no login:", error)
         if (error.includes("Invalid login credentials")) {
           toast.error("Email ou senha incorretos")
         } else {
           toast.error(error)
         }
+        setLoading(false)
         return
       }
 
+      console.log("✅ Login bem-sucedido! Sessão:", data?.session?.user?.id)
       toast.success("Login realizado com sucesso!")
       
-      // Redirecionar imediatamente para a página de retorno
-      router.push(returnUrl)
+      // IMPORTANTE: NÃO resetar loading antes do redirecionamento
+      // Isso previne re-render que pode cancelar a navegação
+      console.log("🔄 Redirecionando para:", returnUrl)
+      
+      // Usar router.replace ao invés de router.push para evitar voltar
+      router.replace(returnUrl)
+      
+      // Aguardar um momento para garantir que o redirecionamento inicie
+      await new Promise(resolve => setTimeout(resolve, 100))
 
     } catch (error: any) {
-      console.error("Erro no login:", error)
+      console.error("💥 Erro inesperado no login:", error)
       toast.error("Erro ao fazer login. Tente novamente.")
-    } finally {
       setLoading(false)
     }
   }
