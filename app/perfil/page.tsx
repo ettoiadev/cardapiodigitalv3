@@ -28,13 +28,12 @@ interface ClienteData {
   nome: string
   email: string
   telefone: string
-  endereco_rua?: string
-  endereco_numero?: string
-  endereco_bairro?: string
-  endereco_cidade?: string
-  endereco_estado?: string
-  endereco_cep?: string
-  endereco_complemento?: string
+  endereco?: string
+  numero?: string
+  bairro?: string
+  cep?: string
+  complemento?: string
+  referencia?: string
 }
 
 export default function PerfilPage() {
@@ -49,13 +48,12 @@ export default function PerfilPage() {
   const [telefone, setTelefone] = useState("")
 
   // Endereço
-  const [enderecoRua, setEnderecoRua] = useState("")
-  const [enderecoNumero, setEnderecoNumero] = useState("")
-  const [enderecoBairro, setEnderecoBairro] = useState("")
-  const [enderecoCidade, setEnderecoCidade] = useState("")
-  const [enderecoEstado, setEnderecoEstado] = useState("")
-  const [enderecoCep, setEnderecoCep] = useState("")
-  const [enderecoComplemento, setEnderecoComplemento] = useState("")
+  const [endereco, setEndereco] = useState("")
+  const [numero, setNumero] = useState("")
+  const [bairro, setBairro] = useState("")
+  const [cep, setCep] = useState("")
+  const [complemento, setComplemento] = useState("")
+  const [referencia, setReferencia] = useState("")
 
   // Senha
   const [senhaAtual, setSenhaAtual] = useState("")
@@ -70,7 +68,7 @@ export default function PerfilPage() {
     try {
       setLoading(true)
 
-      const { user } = await getUser()
+      const { data: user } = await getUser()
       if (!user) {
         router.push("/login?returnUrl=/perfil")
         return
@@ -84,13 +82,12 @@ export default function PerfilPage() {
         setNome(data.nome || "")
         setEmail(data.email || "")
         setTelefone(data.telefone || "")
-        setEnderecoRua(data.endereco_rua || "")
-        setEnderecoNumero(data.endereco_numero || "")
-        setEnderecoBairro(data.endereco_bairro || "")
-        setEnderecoCidade(data.endereco_cidade || "")
-        setEnderecoEstado(data.endereco_estado || "")
-        setEnderecoCep(data.endereco_cep || "")
-        setEnderecoComplemento(data.endereco_complemento || "")
+        setEndereco(data.endereco || "")
+        setNumero(data.numero || "")
+        setBairro(data.bairro || "")
+        setCep(data.cep || "")
+        setComplemento(data.complemento || "")
+        setReferencia(data.referencia || "")
       }
     } catch (error) {
       console.error("Erro ao carregar dados:", error)
@@ -118,7 +115,7 @@ export default function PerfilPage() {
   }
 
   const handleCepChange = (value: string) => {
-    setEnderecoCep(formatCep(value))
+    setCep(formatCep(value))
   }
 
   const handleSaveDadosPessoais = async () => {
@@ -135,7 +132,7 @@ export default function PerfilPage() {
     setSaving(true)
 
     try {
-      const { user } = await getUser()
+      const { data: user } = await getUser()
       if (!user) return
 
       const { error } = await updateClienteData(user.id, {
@@ -159,17 +156,16 @@ export default function PerfilPage() {
     setSaving(true)
 
     try {
-      const { user } = await getUser()
+      const { data: user } = await getUser()
       if (!user) return
 
       const { error } = await updateClienteData(user.id, {
-        endereco_rua: enderecoRua || null,
-        endereco_numero: enderecoNumero || null,
-        endereco_bairro: enderecoBairro || null,
-        endereco_cidade: enderecoCidade || null,
-        endereco_estado: enderecoEstado || null,
-        endereco_cep: enderecoCep.replace(/\D/g, "") || null,
-        endereco_complemento: enderecoComplemento || null
+        endereco: endereco || null,
+        numero: numero || null,
+        bairro: bairro || null,
+        cep: cep.replace(/\D/g, "") || null,
+        complemento: complemento || null,
+        referencia: referencia || null
       })
 
       if (error) throw error
@@ -355,7 +351,7 @@ export default function PerfilPage() {
                     <Label htmlFor="cep">CEP</Label>
                     <Input
                       id="cep"
-                      value={enderecoCep}
+                      value={cep}
                       onChange={(e) => handleCepChange(e.target.value)}
                       placeholder="12345-678"
                       maxLength={9}
@@ -363,11 +359,11 @@ export default function PerfilPage() {
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="rua">Rua</Label>
+                    <Label htmlFor="endereco">Endereço (Rua)</Label>
                     <Input
-                      id="rua"
-                      value={enderecoRua}
-                      onChange={(e) => setEnderecoRua(e.target.value)}
+                      id="endereco"
+                      value={endereco}
+                      onChange={(e) => setEndereco(e.target.value)}
                       placeholder="Rua das Flores"
                     />
                   </div>
@@ -376,19 +372,9 @@ export default function PerfilPage() {
                     <Label htmlFor="numero">Número</Label>
                     <Input
                       id="numero"
-                      value={enderecoNumero}
-                      onChange={(e) => setEnderecoNumero(e.target.value)}
+                      value={numero}
+                      onChange={(e) => setNumero(e.target.value)}
                       placeholder="123"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="complemento">Complemento</Label>
-                    <Input
-                      id="complemento"
-                      value={enderecoComplemento}
-                      onChange={(e) => setEnderecoComplemento(e.target.value)}
-                      placeholder="Apto 45"
                     />
                   </div>
 
@@ -396,30 +382,29 @@ export default function PerfilPage() {
                     <Label htmlFor="bairro">Bairro</Label>
                     <Input
                       id="bairro"
-                      value={enderecoBairro}
-                      onChange={(e) => setEnderecoBairro(e.target.value)}
+                      value={bairro}
+                      onChange={(e) => setBairro(e.target.value)}
                       placeholder="Centro"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="cidade">Cidade</Label>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="complemento">Complemento</Label>
                     <Input
-                      id="cidade"
-                      value={enderecoCidade}
-                      onChange={(e) => setEnderecoCidade(e.target.value)}
-                      placeholder="São José dos Campos"
+                      id="complemento"
+                      value={complemento}
+                      onChange={(e) => setComplemento(e.target.value)}
+                      placeholder="Apto 45, Bloco B"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="estado">Estado</Label>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="referencia">Ponto de Referência</Label>
                     <Input
-                      id="estado"
-                      value={enderecoEstado}
-                      onChange={(e) => setEnderecoEstado(e.target.value.toUpperCase())}
-                      placeholder="SP"
-                      maxLength={2}
+                      id="referencia"
+                      value={referencia}
+                      onChange={(e) => setReferencia(e.target.value)}
+                      placeholder="Próximo ao mercado"
                     />
                   </div>
                 </div>
