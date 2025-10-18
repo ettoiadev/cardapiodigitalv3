@@ -72,10 +72,8 @@ function LoginForm() {
 
       toast.success("Login realizado com sucesso!")
       
-      // Redirecionar para a página de retorno ou home
-      setTimeout(() => {
-        router.push(returnUrl)
-      }, 500)
+      // Redirecionar imediatamente para a página de retorno
+      router.push(returnUrl)
 
     } catch (error: any) {
       console.error("Erro no login:", error)

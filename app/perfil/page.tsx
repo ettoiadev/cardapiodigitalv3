@@ -68,13 +68,14 @@ export default function PerfilPage() {
     try {
       setLoading(true)
 
-      const { data: user } = await getUser()
-      if (!user) {
+      // Verificar sessão do Supabase
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session || !session.user) {
         router.push("/login?returnUrl=/perfil")
         return
       }
 
-      const { data, error } = await getClienteData(user.id)
+      const { data, error } = await getClienteData(session.user.id)
       if (error) throw error
 
       if (data) {
@@ -132,10 +133,10 @@ export default function PerfilPage() {
     setSaving(true)
 
     try {
-      const { data: user } = await getUser()
-      if (!user) return
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session || !session.user) return
 
-      const { error } = await updateClienteData(user.id, {
+      const { error } = await updateClienteData(session.user.id, {
         nome,
         telefone: telefone.replace(/\D/g, "")
       })
@@ -156,10 +157,10 @@ export default function PerfilPage() {
     setSaving(true)
 
     try {
-      const { data: user } = await getUser()
-      if (!user) return
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session || !session.user) return
 
-      const { error } = await updateClienteData(user.id, {
+      const { error } = await updateClienteData(session.user.id, {
         endereco: endereco || null,
         numero: numero || null,
         bairro: bairro || null,
