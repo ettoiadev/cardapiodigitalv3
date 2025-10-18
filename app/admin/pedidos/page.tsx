@@ -13,6 +13,7 @@ import {
   DragOverEvent
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
+import { AdminLayout } from '@/components/admin-layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -233,9 +234,10 @@ export default function PedidosPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      {/* Header */}
-      <div className="mb-6">
+    <AdminLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div>
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
@@ -345,6 +347,7 @@ export default function PedidosPage() {
 
       {/* Notificações em Tempo Real */}
       <AdminRealtimePedidos onNewPedido={recarregar} />
-    </div>
+      </div>
+    </AdminLayout>
   )
 }
