@@ -239,20 +239,43 @@ function HomePageContent() {
   useEffect(() => {
     loadData()
     checkAuthentication()
+
+    // Listener para mudanças de autenticação
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session && session.user) {
+        setIsAuthenticated(true)
+        setUserName(session.user.user_metadata?.nome || session.user.email || "Usuário")
+      } else {
+        setIsAuthenticated(false)
+        setUserName(null)
+      }
+    })
+
+    // Cleanup: remover listener ao desmontar componente
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 
   // Verificar autenticação do usuário
   const checkAuthentication = async () => {
     try {
-      const { data: user } = await getUser()
-      if (user && user.user_metadata) {
+      // Verificar sessão do Supabase primeiro
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (session && session.user) {
+        // Usuário está autenticado
+        const user = session.user
         setIsAuthenticated(true)
-        setUserName(user.user_metadata.nome || user.email || "Usuário")
+        setUserName(user.user_metadata?.nome || user.email || "Usuário")
       } else {
+        // Usuário não está autenticado
         setIsAuthenticated(false)
         setUserName(null)
       }
     } catch (error) {
+      // Em caso de erro, considerar não autenticado
+      console.log("ℹ️ Erro ao verificar autenticação:", error)
       setIsAuthenticated(false)
       setUserName(null)
     }
