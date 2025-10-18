@@ -8,7 +8,8 @@ export interface CartItem {
   nome: string
   tamanho: "broto" | "tradicional"
   sabores: string[]
-  preco: number
+  precoBase: number // Preço base do produto (sem adicionais/borda)
+  preco: number // Preço total calculado
   quantidade: number
   tipo: string
   adicionais?: { 
@@ -42,6 +43,38 @@ const CartContext = createContext<{
   clearLocalStorage: () => void
 } | null>(null)
 
+// Constante para quantidade máxima por item
+const MAX_QUANTITY_PER_ITEM = 50
+
+// Função auxiliar para arredondar valores monetários (previne erros de ponto flutuante)
+const roundMoney = (value: number): number => {
+  return Math.round(value * 100) / 100
+}
+
+// Função auxiliar para comparação profunda determinística
+const deepEqual = (a: any, b: any): boolean => {
+  if (a === b) return true
+  if (a == null || b == null) return false
+  if (typeof a !== 'object' || typeof b !== 'object') return false
+  
+  // Para arrays
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false
+    // Não mutar arrays originais
+    const sortedA = [...a].sort()
+    const sortedB = [...b].sort()
+    return sortedA.every((item, i) => deepEqual(item, sortedB[i]))
+  }
+  
+  // Para objetos
+  const keysA = Object.keys(a).sort()
+  const keysB = Object.keys(b).sort()
+  if (keysA.length !== keysB.length) return false
+  if (!keysA.every((k, i) => k === keysB[i])) return false
+  
+  return keysA.every(key => deepEqual(a[key], b[key]))
+}
+
 const cartReducer = (state: CartState, action: CartAction): CartState => {
   switch (action.type) {
     case "ADD_ITEM": {
@@ -49,22 +82,39 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
         (item) =>
           item.id === action.payload.id &&
           item.tamanho === action.payload.tamanho &&
-          JSON.stringify(item.sabores.sort()) === JSON.stringify(action.payload.sabores.sort()) &&
-          JSON.stringify(item.adicionais || []) === JSON.stringify(action.payload.adicionais || []) &&
-          JSON.stringify(item.bordaRecheada || null) === JSON.stringify(action.payload.bordaRecheada || null),
+          deepEqual(item.sabores, action.payload.sabores) &&
+          deepEqual(item.adicionais || [], action.payload.adicionais || []) &&
+          deepEqual(item.bordaRecheada || null, action.payload.bordaRecheada || null)
       )
 
       let newItems: CartItem[]
 
       if (existingItemIndex >= 0) {
-        newItems = state.items.map((item, index) =>
-          index === existingItemIndex ? { ...item, quantidade: item.quantidade + 1 } : item,
-        )
+        newItems = state.items.map((item, index) => {
+          if (index === existingItemIndex) {
+            const newQuantity = item.quantidade + 1
+            
+            // Validar quantidade máxima
+            if (newQuantity > MAX_QUANTITY_PER_ITEM) {
+              console.warn(`Quantidade máxima atingida: ${MAX_QUANTITY_PER_ITEM}`)
+              return item // Não adiciona mais
+            }
+            
+            return { ...item, quantidade: newQuantity }
+          }
+          return item
+        })
       } else {
-        newItems = [...state.items, { ...action.payload, quantidade: 1 }]
+        // Garantir que precoBase existe ao adicionar novo item
+        const itemWithBase = {
+          ...action.payload,
+          precoBase: action.payload.precoBase || action.payload.preco,
+          quantidade: 1
+        }
+        newItems = [...state.items, itemWithBase]
       }
 
-      const newTotal = newItems.reduce((sum, item) => sum + item.preco * item.quantidade, 0)
+      const newTotal = roundMoney(newItems.reduce((sum, item) => sum + item.preco * item.quantidade, 0))
 
       return {
         items: newItems,
@@ -74,7 +124,7 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
 
     case "REMOVE_ITEM": {
       const newItems = state.items.filter((item) => item.id !== action.payload)
-      const newTotal = newItems.reduce((sum, item) => sum + item.preco * item.quantidade, 0)
+      const newTotal = roundMoney(newItems.reduce((sum, item) => sum + item.preco * item.quantidade, 0))
 
       return {
         items: newItems,
@@ -84,10 +134,22 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
 
     case "UPDATE_QUANTITY": {
       const newItems = state.items
-        .map((item) => (item.id === action.payload.id ? { ...item, quantidade: action.payload.quantidade } : item))
+        .map((item) => {
+          if (item.id === action.payload.id) {
+            // Validar quantidade máxima
+            const newQuantity = Math.min(action.payload.quantidade, MAX_QUANTITY_PER_ITEM)
+            
+            if (action.payload.quantidade > MAX_QUANTITY_PER_ITEM) {
+              console.warn(`Quantidade máxima atingida: ${MAX_QUANTITY_PER_ITEM}`)
+            }
+            
+            return { ...item, quantidade: newQuantity }
+          }
+          return item
+        })
         .filter((item) => item.quantidade > 0)
 
-      const newTotal = newItems.reduce((sum, item) => sum + item.preco * item.quantidade, 0)
+      const newTotal = roundMoney(newItems.reduce((sum, item) => sum + item.preco * item.quantidade, 0))
 
       return {
         items: newItems,
@@ -98,17 +160,16 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
     case "UPDATE_ADICIONAIS": {
       const newItems = state.items.map((item) => {
         if (item.id === action.payload.id) {
-          // Calcular novo preço incluindo adicionais
+          // Calcular preço dos novos adicionais
           const adicionaisPrice = action.payload.adicionais.reduce((sum, grupo) => 
             sum + grupo.itens.reduce((itemSum, adicional) => itemSum + adicional.preco, 0), 0
           )
           
-          // O preço base do item (sem adicionais anteriores)
-          const basePrice = item.preco - (item.adicionais?.reduce((sum, grupo) => 
-            sum + grupo.itens.reduce((itemSum, adicional) => itemSum + adicional.preco, 0), 0
-          ) || 0)
+          // Calcular preço da borda (se existir)
+          const bordaPrice = item.bordaRecheada?.preco || 0
           
-          const newPrice = basePrice + adicionaisPrice
+          // Preço total = preço base + adicionais + borda
+          const newPrice = roundMoney(item.precoBase + adicionaisPrice + bordaPrice)
           
           return {
             ...item,
@@ -130,11 +191,16 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
     case "UPDATE_BORDA": {
       const newItems = state.items.map((item) => {
         if (item.id === action.payload.id) {
-          // Calcular preço base (sem borda anterior)
-          const basePrice = item.preco - (item.bordaRecheada?.preco || 0)
+          // Calcular preço dos adicionais (se existirem)
+          const adicionaisPrice = item.adicionais?.reduce((sum, grupo) => 
+            sum + grupo.itens.reduce((itemSum, adicional) => itemSum + adicional.preco, 0), 0
+          ) || 0
           
-          // Calcular novo preço com nova borda
-          const newPrice = basePrice + (action.payload.bordaRecheada?.preco || 0)
+          // Calcular preço da nova borda
+          const novaBordaPrice = action.payload.bordaRecheada?.preco || 0
+          
+          // Preço total = preço base + adicionais + nova borda
+          const newPrice = roundMoney(item.precoBase + adicionaisPrice + novaBordaPrice)
           
           return {
             ...item,
@@ -218,14 +284,36 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  // Salvar no localStorage sempre que o estado mudar
+  // Salvar no localStorage com debounce para evitar race conditions
   useEffect(() => {
     if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("pizzaria-cart", JSON.stringify(state))
-      } catch (error) {
-        console.error("Erro ao salvar carrinho no localStorage:", error)
-      }
+      // Debounce de 300ms para evitar escritas excessivas
+      const timer = setTimeout(() => {
+        try {
+          const cartData = JSON.stringify(state)
+          
+          // Salvar no localStorage
+          localStorage.setItem("pizzaria-cart", cartData)
+          
+          // Backup em sessionStorage para recuperação em caso de erro
+          sessionStorage.setItem("pizzaria-cart-backup", cartData)
+        } catch (error) {
+          console.error("Erro ao salvar carrinho no localStorage:", error)
+          
+          // Tentar recuperar do backup se falhar
+          try {
+            const backup = sessionStorage.getItem("pizzaria-cart-backup")
+            if (backup) {
+              localStorage.setItem("pizzaria-cart", backup)
+              console.log("✅ Carrinho recuperado do backup")
+            }
+          } catch (backupError) {
+            console.error("Erro ao recuperar backup:", backupError)
+          }
+        }
+      }, 300)
+      
+      return () => clearTimeout(timer)
     }
   }, [state])
 

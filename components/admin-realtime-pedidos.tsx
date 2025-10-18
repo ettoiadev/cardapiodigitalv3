@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { supabase } from "@/lib/supabase"
 import { Badge } from "@/components/ui/badge"
 import { Bell } from "lucide-react"
@@ -11,8 +11,17 @@ interface AdminRealtimePedidosProps {
 
 export function AdminRealtimePedidos({ onNewPedido }: AdminRealtimePedidosProps) {
   const [novosPedidos, setNovosPedidos] = useState(0)
+  const timersRef = useRef<Set<NodeJS.Timeout>>(new Set())
+  const callbackRef = useRef(onNewPedido)
+
+  // Atualizar callback ref quando mudar (sem re-criar subscription)
+  useEffect(() => {
+    callbackRef.current = onNewPedido
+  }, [onNewPedido])
 
   useEffect(() => {
+    let mounted = true
+
     // Criar canal para escutar novos pedidos
     const channel = supabase
       .channel('admin-pedidos')
@@ -24,6 +33,8 @@ export function AdminRealtimePedidos({ onNewPedido }: AdminRealtimePedidosProps)
           table: 'pedidos'
         },
         (payload) => {
+          if (!mounted) return // Não processar se desmontado
+          
           console.log('🔔 Novo pedido recebido:', payload.new)
           
           // Incrementar contador
@@ -32,23 +43,37 @@ export function AdminRealtimePedidos({ onNewPedido }: AdminRealtimePedidosProps)
           // Tocar som
           playNotificationSound()
           
-          // Callback para recarregar lista
-          if (onNewPedido) {
-            onNewPedido()
+          // Callback para recarregar lista (usando ref)
+          if (callbackRef.current) {
+            callbackRef.current()
           }
 
           // Resetar contador após 5 segundos
-          setTimeout(() => {
-            setNovosPedidos(prev => Math.max(0, prev - 1))
+          const timer = setTimeout(() => {
+            if (mounted) {
+              setNovosPedidos(prev => Math.max(0, prev - 1))
+            }
+            // Remover timer do Set após execução
+            timersRef.current.delete(timer)
           }, 5000)
+          
+          // Adicionar timer ao Set para cleanup posterior
+          timersRef.current.add(timer)
         }
       )
       .subscribe()
 
     return () => {
+      mounted = false
+      
+      // Limpar TODOS os timers pendentes
+      timersRef.current.forEach(timer => clearTimeout(timer))
+      timersRef.current.clear()
+      
+      // Remover channel
       supabase.removeChannel(channel)
     }
-  }, [onNewPedido])
+  }, []) // Sem dependências - subscription criada apenas uma vez
 
   const playNotificationSound = () => {
     try {

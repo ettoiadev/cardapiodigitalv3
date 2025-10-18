@@ -25,9 +25,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Verificar se há admin logado no localStorage
-    const savedAdmin = localStorage.getItem("admin")
-    if (savedAdmin) {
-      setAdmin(JSON.parse(savedAdmin))
+    try {
+      const savedAdmin = localStorage.getItem("admin")
+      if (savedAdmin) {
+        const parsed = JSON.parse(savedAdmin)
+        // Validar estrutura básica
+        if (parsed && typeof parsed === 'object' && parsed.id) {
+          setAdmin(parsed)
+        } else {
+          console.warn("Dados de admin inválidos no localStorage")
+          localStorage.removeItem("admin")
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao carregar admin do localStorage:", error)
+      localStorage.removeItem("admin")
     }
     setLoading(false)
 

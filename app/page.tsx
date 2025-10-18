@@ -240,7 +240,7 @@ function HomePageContent() {
     const interval = setInterval(updateStatus, 60000)
     
     return () => clearInterval(interval)
-  }, [config?.horario_funcionamento])
+  }, [config]) // Observar config completo para detectar todas as mudanças
 
   // Processamento automático APENAS para múltiplos sabores (2 ou 3)
   useEffect(() => {
@@ -391,6 +391,7 @@ function HomePageContent() {
           nome: pizza.nome,
           tamanho: tamanho,
           sabores: [pizza.nome],
+          precoBase: preco,
           preco: preco,
           tipo: pizza.tipo,
         },
@@ -459,6 +460,7 @@ function HomePageContent() {
             nome: nomeItem,
             tamanho: tamanhoComum,
             sabores: sabores,
+            precoBase: preco,
             preco: preco,
             tipo: newSelection[0].tipo,
           },
@@ -505,6 +507,7 @@ function HomePageContent() {
         nome: nomeItem,
         tamanho: tamanho,
         sabores: sabores,
+        precoBase: preco,
         preco: preco,
         tipo: selectedFlavorsForMulti[0].tipo,
       },
@@ -529,6 +532,7 @@ function HomePageContent() {
       })
     } else {
       // Se não está no carrinho, adicionar
+      const precoFinal = produto.promocao ? (produto.preco_promocional_tradicional || 0) : (produto.preco_tradicional || 0)
       dispatch({
         type: "ADD_ITEM",
         payload: {
@@ -536,7 +540,8 @@ function HomePageContent() {
           nome: produto.nome,
           tamanho: "tradicional", // Produtos não-pizza não têm variação de tamanho
           sabores: [produto.nome],
-          preco: produto.promocao ? (produto.preco_promocional_tradicional || 0) : (produto.preco_tradicional || 0),
+          precoBase: precoFinal,
+          preco: precoFinal,
           tipo: produto.tipo,
         },
       })

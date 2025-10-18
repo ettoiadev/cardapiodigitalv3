@@ -130,13 +130,20 @@ export default function CheckoutPage() {
   
   // Verificar carrinho vazio e redirecionar se necessário
   useEffect(() => {
+    let mounted = true
+    
     if (!loading && (!state.items || state.items.length === 0)) {
       // Aguardar um momento antes de redirecionar para evitar conflitos
       const timer = setTimeout(() => {
-        router.push("/")
+        if (mounted) {
+          router.push("/")
+        }
       }, 500)
       
-      return () => clearTimeout(timer)
+      return () => {
+        mounted = false
+        clearTimeout(timer)
+      }
     }
   }, [state.items?.length, router, loading])
 
@@ -312,19 +319,50 @@ export default function CheckoutPage() {
     setSearchingCep(true)
     setCepError("")
     
+    // Timeout de 10 segundos
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000)
+    
     try {
-      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`, {
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
+      
+      // Verificar status antes de parsear
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
       const data = await response.json()
+      
+      // Validar estrutura da resposta
+      if (!data || typeof data !== 'object') {
+        throw new Error('Resposta inválida da API')
+      }
       
       if (data.erro) {
         setCepError("CEP não encontrado")
         setAddressData(null)
       } else {
+        // Validar campos obrigatórios
+        if (!data.logradouro && !data.bairro) {
+          setCepError("CEP válido mas sem dados de endereço")
+        }
         setAddressData(data)
         setCepError("")
       }
-    } catch (error) {
-      setCepError("Erro ao buscar CEP")
+    } catch (error: any) {
+      clearTimeout(timeoutId)
+      
+      if (error.name === 'AbortError') {
+        setCepError("Tempo esgotado. Tente novamente.")
+      } else if (error.message?.includes('HTTP error')) {
+        setCepError("Serviço temporariamente indisponível")
+      } else {
+        setCepError("Erro ao buscar CEP")
+      }
       setAddressData(null)
     } finally {
       setSearchingCep(false)
@@ -333,7 +371,10 @@ export default function CheckoutPage() {
   
   // Máscara de CEP
   const handleCepChange = (value: string) => {
-    const masked = value
+    // Sanitizar entrada removendo caracteres não permitidos
+    const sanitized = value.replace(/[^\d-]/g, "")
+    
+    const masked = sanitized
       .replace(/\D/g, "")
       .replace(/(\d{5})(\d)/, "$1-$2")
       .slice(0, 9)
@@ -359,33 +400,101 @@ export default function CheckoutPage() {
     setCustomerPhone(masked)
   }
   
-  // Validar formulário
+  // Validar formulário completo
   const isFormValid = () => {
+    // Validar itens no carrinho
+    if (!state.items || state.items.length === 0) {
+      console.warn("❌ Carrinho vazio")
+      return false
+    }
+    
+    // Validar valor mínimo
+    if (storeConfig && subtotal < storeConfig.valor_minimo) {
+      console.warn("❌ Valor mínimo não atingido")
+      return false
+    }
+    
+    // Validar método de pagamento habilitado
+    if (storeConfig) {
+      const methodEnabled = 
+        (paymentMethod === "pix" && storeConfig.aceita_pix) ||
+        (paymentMethod === "dinheiro" && storeConfig.aceita_dinheiro) ||
+        ((paymentMethod === "debito" || paymentMethod === "credito") && storeConfig.aceita_cartao) ||
+        (paymentMethod === "ticket_alimentacao" && storeConfig.aceita_ticket_alimentacao)
+      
+      if (!methodEnabled) {
+        console.warn("❌ Método de pagamento não habilitado")
+        return false
+      }
+    }
+    
     if (deliveryType === "delivery") {
+      // Validar nome (mínimo 3 caracteres)
+      if (!customerName.trim() || customerName.trim().length < 3) {
+        console.warn("❌ Nome inválido (mínimo 3 caracteres)")
+        return false
+      }
+      
+      // Validar telefone (10 ou 11 dígitos)
+      const phoneDigits = customerPhone.replace(/\D/g, "")
+      if (phoneDigits.length < 10 || phoneDigits.length > 11) {
+        console.warn("❌ Telefone inválido")
+        return false
+      }
+      
+      // Validar CEP
+      if (customerCep.replace(/\D/g, "").length !== 8) {
+        console.warn("❌ CEP inválido")
+        return false
+      }
+      
+      // Validar endereço encontrado
+      if (!addressData) {
+        console.warn("❌ Endereço não encontrado")
+        return false
+      }
+      
+      // Validar número do endereço
+      if (!addressNumber.trim()) {
+        console.warn("❌ Número do endereço obrigatório")
+        return false
+      }
+      
       const validacoes = {
-        nome: customerName.trim() !== "",
-        telefone: customerPhone.replace(/\D/g, "").length >= 10,
+        nome: customerName.trim().length >= 3,
+        telefone: phoneDigits.length >= 10 && phoneDigits.length <= 11,
         cep: customerCep.replace(/\D/g, "").length === 8,
         endereco: addressData !== null,
-        numero: addressNumber.trim() !== ""
+        numero: addressNumber.trim() !== "",
+        valorMinimo: subtotal >= (storeConfig?.valor_minimo || 0),
+        metodoPagamento: true // Já validado acima
       }
       
       console.log("📝 Validação delivery:", validacoes)
       
-      return (
-        validacoes.nome &&
-        validacoes.telefone &&
-        validacoes.cep &&
-        validacoes.endereco &&
-        validacoes.numero
-      )
+      return Object.values(validacoes).every(v => v === true)
     } else {
-      const validacoes = {
-        nome: customerName.trim() !== "",
-        telefone: customerPhone.replace(/\D/g, "").length >= 10
+      // Validar nome (mínimo 3 caracteres)
+      if (!customerName.trim() || customerName.trim().length < 3) {
+        console.warn("❌ Nome inválido (mínimo 3 caracteres)")
+        return false
       }
       
-      // console.log("📝 Validação balcão:", validacoes) // Log removido para evitar spam
+      // Validar telefone
+      const phoneDigits = customerPhone.replace(/\D/g, "")
+      if (phoneDigits.length < 10 || phoneDigits.length > 11) {
+        console.warn("❌ Telefone inválido")
+        return false
+      }
+      
+      const validacoes = {
+        nome: customerName.trim().length >= 3,
+        telefone: phoneDigits.length >= 10 && phoneDigits.length <= 11,
+        valorMinimo: subtotal >= (storeConfig?.valor_minimo || 0),
+        metodoPagamento: true // Já validado acima
+      }
+      
+      console.log("📝 Validação balcão:", validacoes)
       
       // Para retirada no balcão: apenas nome e telefone são obrigatórios
       return (
