@@ -43,10 +43,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     { href: "/admin/caixa", icon: Wallet, label: "Caixa" },
     { href: "/admin/relatorios", icon: BarChart3, label: "Relatórios" },
     { href: "/admin/notificacoes", icon: MessageCircle, label: "Notificações" },
-    { href: "/admin/cupom-fiscal", icon: FileText, label: "Cupom Fiscal" },
-    { href: "/admin/fidelidade", icon: Award, label: "Fidelidade" },
-    { href: "/admin/avaliacoes", icon: Star, label: "Avaliações" },
-    { href: "/admin/taxas", icon: MapPin, label: "Taxas de Entrega" },
     { href: "/admin/config", icon: Settings, label: "Configurações" },
   ]
 
