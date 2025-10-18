@@ -16,8 +16,8 @@ interface Caixa {
   id: string
   data_abertura: string
   data_fechamento?: string
-  saldo_inicial: number
-  saldo_final?: number
+  valor_abertura: number
+  valor_fechamento?: number
   status: string
   observacoes?: string
 }
@@ -54,7 +54,7 @@ export default function CaixaPage() {
       
       // Buscar caixa aberto
       const { data: caixa, error: caixaError } = await supabase
-        .from("caixas")
+        .from("caixa")
         .select("*")
         .eq("status", "aberto")
         .order("data_abertura", { ascending: false })
@@ -81,7 +81,7 @@ export default function CaixaPage() {
   const loadLancamentos = async (caixaId: string) => {
     try {
       const { data, error } = await supabase
-        .from("lancamentos")
+        .from("lancamentos_caixa")
         .select("*")
         .eq("caixa_id", caixaId)
         .order("criado_em", { ascending: false })
@@ -93,7 +93,7 @@ export default function CaixaPage() {
       // Calcular estatísticas
       const entradas = data?.filter(l => l.tipo === 'entrada').reduce((sum, l) => sum + l.valor, 0) || 0
       const saidas = data?.filter(l => l.tipo === 'saida').reduce((sum, l) => sum + l.valor, 0) || 0
-      const saldoAtual = (caixaAtual?.saldo_inicial || 0) + entradas - saidas
+      const saldoAtual = (caixaAtual?.valor_abertura || 0) + entradas - saidas
 
       setStats({ entradas, saidas, saldoAtual })
     } catch (error) {
@@ -110,10 +110,10 @@ export default function CaixaPage() {
 
     try {
       const { data, error } = await supabase
-        .from("caixas")
+        .from("caixa")
         .insert([{
           data_abertura: new Date().toISOString(),
-          saldo_inicial: parseFloat(saldoInicial),
+          valor_abertura: parseFloat(saldoInicial),
           status: 'aberto'
         }])
         .select()
@@ -141,10 +141,12 @@ export default function CaixaPage() {
 
     try {
       const { error } = await supabase
-        .from("caixas")
+        .from("caixa")
         .update({
           data_fechamento: new Date().toISOString(),
-          saldo_final: stats.saldoAtual,
+          valor_fechamento: stats.saldoAtual,
+          valor_esperado: stats.saldoAtual,
+          diferenca: 0,
           status: 'fechado'
         })
         .eq("id", caixaAtual.id)
@@ -275,7 +277,7 @@ export default function CaixaPage() {
                   <div className="flex items-center space-x-2">
                     <DollarSign className="h-5 w-5 text-gray-400" />
                     <span className="text-2xl font-bold text-gray-900">
-                      {formatCurrency(caixaAtual.saldo_inicial)}
+                      {formatCurrency(caixaAtual.valor_abertura)}
                     </span>
                   </div>
                 </CardContent>

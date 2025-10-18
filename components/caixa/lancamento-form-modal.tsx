@@ -50,7 +50,7 @@ export function LancamentoFormModal({ isOpen, onClose, caixaId, onSuccess }: Lan
 
     try {
       const { error } = await supabase
-        .from("lancamentos")
+        .from("lancamentos_caixa")
         .insert([{
           caixa_id: caixaId,
           tipo: formData.tipo,
