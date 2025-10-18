@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { LogIn, Mail, Lock, ArrowLeft, Loader2 } from "lucide-react"
 import { signIn } from "@/lib/auth-helpers"
+import { supabase } from "@/lib/supabase"
 import { toast } from "sonner"
 
 function LoginForm() {
@@ -77,15 +78,23 @@ function LoginForm() {
       console.log("✅ Login bem-sucedido! Sessão:", data?.session?.user?.id)
       toast.success("Login realizado com sucesso!")
       
-      // IMPORTANTE: NÃO resetar loading antes do redirecionamento
-      // Isso previne re-render que pode cancelar a navegação
-      console.log("🔄 Redirecionando para:", returnUrl)
+      // CRÍTICO: Aguardar a sessão ser completamente estabelecida
+      // antes de redirecionar para evitar race condition
+      console.log("⏳ Aguardando sessão ser estabelecida...")
+      await new Promise(resolve => setTimeout(resolve, 300))
       
-      // Usar router.replace ao invés de router.push para evitar voltar
-      router.replace(returnUrl)
-      
-      // Aguardar um momento para garantir que o redirecionamento inicie
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Verificar se a sessão está realmente disponível
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session && session.user) {
+        console.log("✅ Sessão confirmada! Redirecionando para:", returnUrl)
+        
+        // Usar window.location.href para garantir navegação completa
+        window.location.href = returnUrl
+      } else {
+        console.error("❌ Sessão não disponível após login!")
+        toast.error("Erro ao estabelecer sessão. Tente novamente.")
+        setLoading(false)
+      }
 
     } catch (error: any) {
       console.error("💥 Erro inesperado no login:", error)
