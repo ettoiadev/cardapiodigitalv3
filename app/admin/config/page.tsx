@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin-layout"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -13,7 +13,7 @@ import FidelidadeTab from "./tabs/fidelidade"
 import AvaliacoesTab from "./tabs/avaliacoes"
 import TaxasTab from "./tabs/taxas"
 
-export default function ConfigPage() {
+function ConfigContent() {
   const searchParams = useSearchParams()
   const tabFromUrl = searchParams.get("tab")
   const [activeTab, setActiveTab] = useState(tabFromUrl || "geral")
@@ -110,5 +110,22 @@ export default function ConfigPage() {
         </Tabs>
       </div>
     </AdminLayout>
+  )
+}
+
+export default function ConfigPage() {
+  return (
+    <Suspense fallback={
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Carregando configurações...</p>
+          </div>
+        </div>
+      </AdminLayout>
+    }>
+      <ConfigContent />
+    </Suspense>
   )
 }
