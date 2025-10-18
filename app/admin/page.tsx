@@ -56,8 +56,8 @@ export default function AdminDashboard() {
       const { data: pedidosHoje } = await supabase
         .from("pedidos")
         .select("total")
-        .gte("criado_em", hoje.toISOString())
-        .eq("status", "entregue")
+        .gte("created_at", hoje.toISOString())
+        .eq("status", "finalizado")
 
       const vendasHoje = pedidosHoje?.reduce((sum, p) => sum + p.total, 0) || 0
       const pedidosHojeCount = pedidosHoje?.length || 0
@@ -66,8 +66,8 @@ export default function AdminDashboard() {
       const { data: pedidosMes } = await supabase
         .from("pedidos")
         .select("total")
-        .gte("criado_em", primeiroDiaMes.toISOString())
-        .eq("status", "entregue")
+        .gte("created_at", primeiroDiaMes.toISOString())
+        .eq("status", "finalizado")
 
       const vendasMes = pedidosMes?.reduce((sum, p) => sum + p.total, 0) || 0
       const ticketMedio = pedidosMes && pedidosMes.length > 0 ? vendasMes / pedidosMes.length : 0
@@ -97,7 +97,7 @@ export default function AdminDashboard() {
       const { count: emRota } = await supabase
         .from("pedidos")
         .select("*", { count: "exact", head: true })
-        .eq("status", "em_rota")
+        .eq("status", "saiu_entrega")
 
       setStats({
         vendasHoje,

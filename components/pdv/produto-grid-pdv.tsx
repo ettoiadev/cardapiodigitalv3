@@ -52,10 +52,10 @@ export function ProdutoGridPDV({ onAdicionarProduto }: ProdutoGridPDVProps) {
         .select(`
           id,
           nome,
-          preco,
+          preco_tradicional,
+          preco_broto,
           categoria_id,
-          disponivel,
-          destaque,
+          tipo,
           categorias (nome)
         `)
         .eq('ativo', true)
@@ -66,11 +66,12 @@ export function ProdutoGridPDV({ onAdicionarProduto }: ProdutoGridPDVProps) {
       const produtosFormatados: ProdutoPDV[] = (produtosData || []).map((p: any) => ({
         id: p.id,
         nome: p.nome,
-        preco: p.preco,
+        // Usar preco_tradicional como padrão, ou preco_broto se tradicional não existir
+        preco: p.preco_tradicional || p.preco_broto || 0,
         categoria_id: p.categoria_id,
         categoria_nome: p.categorias?.nome || '',
-        disponivel: p.disponivel ?? true,
-        destaque: p.destaque ?? false
+        disponivel: true, // Produtos ativos são sempre disponíveis
+        destaque: false
       }))
 
       setProdutos(produtosFormatados)
