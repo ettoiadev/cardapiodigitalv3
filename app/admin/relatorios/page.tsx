@@ -59,7 +59,7 @@ export default function RelatoriosPage() {
           id,
           total,
           created_at,
-          itens_pedido (
+          pedido_itens (
             produto_id,
             quantidade,
             produtos (nome)
@@ -67,7 +67,7 @@ export default function RelatoriosPage() {
         `)
         .gte("created_at", dataInicio.toISOString())
         .lte("created_at", dataFim.toISOString())
-        .eq("status", "entregue")
+        .eq("status", "finalizado")
 
       if (pedidosError) throw pedidosError
 
@@ -79,7 +79,7 @@ export default function RelatoriosPage() {
       // Produtos mais vendidos
       const produtosMap = new Map<string, VendaPorProduto>()
       pedidos?.forEach(pedido => {
-        pedido.itens_pedido?.forEach((item: any) => {
+        pedido.pedido_itens?.forEach((item: any) => {
           const key = item.produto_id
           if (!produtosMap.has(key)) {
             produtosMap.set(key, {
