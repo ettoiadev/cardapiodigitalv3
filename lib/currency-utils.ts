@@ -244,8 +244,13 @@ export function applyCurrencyMask(
   event: { target: { value: string } }
 ): number {
   const input = event.target as HTMLInputElement
-  const formattedValue = formatCurrencyInput(input.value)
-  input.value = formattedValue
+  const currentValue = input.value
+  const formattedValue = formatCurrencyInput(currentValue)
+  
+  // Só atualiza se o valor mudou (evita loop infinito)
+  if (formattedValue !== currentValue) {
+    input.value = formattedValue
+  }
   
   return parseCurrencyInput(formattedValue)
 }
