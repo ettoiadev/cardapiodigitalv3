@@ -1,0 +1,535 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { 
+  User, 
+  Mail, 
+  Phone, 
+  MapPin, 
+  Lock, 
+  Home,
+  Loader2,
+  Save,
+  ArrowLeft
+} from "lucide-react"
+import { supabase } from "@/lib/supabase"
+import { getUser, updatePassword, getClienteData, updateClienteData } from "@/lib/auth-helpers"
+import { toast } from "sonner"
+
+interface ClienteData {
+  id: string
+  nome: string
+  email: string
+  telefone: string
+  endereco_rua?: string
+  endereco_numero?: string
+  endereco_bairro?: string
+  endereco_cidade?: string
+  endereco_estado?: string
+  endereco_cep?: string
+  endereco_complemento?: string
+}
+
+export default function PerfilPage() {
+  const router = useRouter()
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [cliente, setCliente] = useState<ClienteData | null>(null)
+
+  // Dados pessoais
+  const [nome, setNome] = useState("")
+  const [email, setEmail] = useState("")
+  const [telefone, setTelefone] = useState("")
+
+  // Endereço
+  const [enderecoRua, setEnderecoRua] = useState("")
+  const [enderecoNumero, setEnderecoNumero] = useState("")
+  const [enderecoBairro, setEnderecoBairro] = useState("")
+  const [enderecoCidade, setEnderecoCidade] = useState("")
+  const [enderecoEstado, setEnderecoEstado] = useState("")
+  const [enderecoCep, setEnderecoCep] = useState("")
+  const [enderecoComplemento, setEnderecoComplemento] = useState("")
+
+  // Senha
+  const [senhaAtual, setSenhaAtual] = useState("")
+  const [novaSenha, setNovaSenha] = useState("")
+  const [confirmarSenha, setConfirmarSenha] = useState("")
+
+  useEffect(() => {
+    loadCliente()
+  }, [])
+
+  const loadCliente = async () => {
+    try {
+      setLoading(true)
+
+      const { user } = await getUser()
+      if (!user) {
+        router.push("/login?returnUrl=/perfil")
+        return
+      }
+
+      const { data, error } = await getClienteData(user.id)
+      if (error) throw error
+
+      if (data) {
+        setCliente(data)
+        setNome(data.nome || "")
+        setEmail(data.email || "")
+        setTelefone(data.telefone || "")
+        setEnderecoRua(data.endereco_rua || "")
+        setEnderecoNumero(data.endereco_numero || "")
+        setEnderecoBairro(data.endereco_bairro || "")
+        setEnderecoCidade(data.endereco_cidade || "")
+        setEnderecoEstado(data.endereco_estado || "")
+        setEnderecoCep(data.endereco_cep || "")
+        setEnderecoComplemento(data.endereco_complemento || "")
+      }
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error)
+      toast.error("Erro ao carregar dados do perfil")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const formatTelefone = (value: string) => {
+    const numbers = value.replace(/\D/g, "")
+    if (numbers.length <= 10) {
+      return numbers.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3")
+    }
+    return numbers.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3")
+  }
+
+  const handleTelefoneChange = (value: string) => {
+    setTelefone(formatTelefone(value))
+  }
+
+  const formatCep = (value: string) => {
+    const numbers = value.replace(/\D/g, "")
+    return numbers.replace(/(\d{5})(\d{0,3})/, "$1-$2")
+  }
+
+  const handleCepChange = (value: string) => {
+    setEnderecoCep(formatCep(value))
+  }
+
+  const handleSaveDadosPessoais = async () => {
+    if (!nome.trim()) {
+      toast.error("Nome é obrigatório")
+      return
+    }
+
+    if (!telefone.trim()) {
+      toast.error("Telefone é obrigatório")
+      return
+    }
+
+    setSaving(true)
+
+    try {
+      const { user } = await getUser()
+      if (!user) return
+
+      const { error } = await updateClienteData(user.id, {
+        nome,
+        telefone: telefone.replace(/\D/g, "")
+      })
+
+      if (error) throw error
+
+      toast.success("Dados atualizados com sucesso!")
+      loadCliente()
+    } catch (error: any) {
+      console.error("Erro ao salvar:", error)
+      toast.error("Erro ao atualizar dados")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveEndereco = async () => {
+    setSaving(true)
+
+    try {
+      const { user } = await getUser()
+      if (!user) return
+
+      const { error } = await updateClienteData(user.id, {
+        endereco_rua: enderecoRua || null,
+        endereco_numero: enderecoNumero || null,
+        endereco_bairro: enderecoBairro || null,
+        endereco_cidade: enderecoCidade || null,
+        endereco_estado: enderecoEstado || null,
+        endereco_cep: enderecoCep.replace(/\D/g, "") || null,
+        endereco_complemento: enderecoComplemento || null
+      })
+
+      if (error) throw error
+
+      toast.success("Endereço atualizado com sucesso!")
+      loadCliente()
+    } catch (error: any) {
+      console.error("Erro ao salvar:", error)
+      toast.error("Erro ao atualizar endereço")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleChangeSenha = async () => {
+    if (!novaSenha) {
+      toast.error("Informe a nova senha")
+      return
+    }
+
+    if (novaSenha.length < 6) {
+      toast.error("A senha deve ter no mínimo 6 caracteres")
+      return
+    }
+
+    if (novaSenha !== confirmarSenha) {
+      toast.error("As senhas não coincidem")
+      return
+    }
+
+    setSaving(true)
+
+    try {
+      const { error } = await updatePassword(novaSenha)
+
+      if (error) throw error
+
+      toast.success("Senha alterada com sucesso!")
+      setSenhaAtual("")
+      setNovaSenha("")
+      setConfirmarSenha("")
+    } catch (error: any) {
+      console.error("Erro ao alterar senha:", error)
+      toast.error("Erro ao alterar senha")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-red-600 mx-auto" />
+          <p className="mt-4 text-gray-600">Carregando perfil...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-3xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center gap-4">
+          <Link href="/">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Meu Perfil</h1>
+            <p className="text-sm text-gray-600">Gerencie suas informações pessoais</p>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <Tabs defaultValue="dados" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="dados">
+              <User className="h-4 w-4 mr-2" />
+              Dados Pessoais
+            </TabsTrigger>
+            <TabsTrigger value="endereco">
+              <MapPin className="h-4 w-4 mr-2" />
+              Endereço
+            </TabsTrigger>
+            <TabsTrigger value="senha">
+              <Lock className="h-4 w-4 mr-2" />
+              Senha
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Dados Pessoais */}
+          <TabsContent value="dados">
+            <Card>
+              <CardHeader>
+                <CardTitle>Informações Pessoais</CardTitle>
+                <CardDescription>
+                  Atualize seus dados de cadastro
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nome">Nome Completo</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="nome"
+                      value={nome}
+                      onChange={(e) => setNome(e.target.value)}
+                      className="pl-10"
+                      placeholder="Seu nome completo"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="email"
+                      value={email}
+                      disabled
+                      className="pl-10 bg-gray-50"
+                      placeholder="seu@email.com"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    O email não pode ser alterado
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="telefone">Telefone</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="telefone"
+                      value={telefone}
+                      onChange={(e) => handleTelefoneChange(e.target.value)}
+                      className="pl-10"
+                      placeholder="(12) 99999-9999"
+                      maxLength={15}
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  onClick={handleSaveDadosPessoais}
+                  disabled={saving}
+                  className="w-full bg-red-600 hover:bg-red-700"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Salvar Alterações
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Endereço */}
+          <TabsContent value="endereco">
+            <Card>
+              <CardHeader>
+                <CardTitle>Endereço Padrão</CardTitle>
+                <CardDescription>
+                  Configure um endereço padrão para agilizar seus pedidos
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="cep">CEP</Label>
+                    <Input
+                      id="cep"
+                      value={enderecoCep}
+                      onChange={(e) => handleCepChange(e.target.value)}
+                      placeholder="12345-678"
+                      maxLength={9}
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="rua">Rua</Label>
+                    <Input
+                      id="rua"
+                      value={enderecoRua}
+                      onChange={(e) => setEnderecoRua(e.target.value)}
+                      placeholder="Rua das Flores"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="numero">Número</Label>
+                    <Input
+                      id="numero"
+                      value={enderecoNumero}
+                      onChange={(e) => setEnderecoNumero(e.target.value)}
+                      placeholder="123"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="complemento">Complemento</Label>
+                    <Input
+                      id="complemento"
+                      value={enderecoComplemento}
+                      onChange={(e) => setEnderecoComplemento(e.target.value)}
+                      placeholder="Apto 45"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="bairro">Bairro</Label>
+                    <Input
+                      id="bairro"
+                      value={enderecoBairro}
+                      onChange={(e) => setEnderecoBairro(e.target.value)}
+                      placeholder="Centro"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="cidade">Cidade</Label>
+                    <Input
+                      id="cidade"
+                      value={enderecoCidade}
+                      onChange={(e) => setEnderecoCidade(e.target.value)}
+                      placeholder="São José dos Campos"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="estado">Estado</Label>
+                    <Input
+                      id="estado"
+                      value={enderecoEstado}
+                      onChange={(e) => setEnderecoEstado(e.target.value.toUpperCase())}
+                      placeholder="SP"
+                      maxLength={2}
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  onClick={handleSaveEndereco}
+                  disabled={saving}
+                  className="w-full bg-red-600 hover:bg-red-700"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Salvar Endereço
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Senha */}
+          <TabsContent value="senha">
+            <Card>
+              <CardHeader>
+                <CardTitle>Alterar Senha</CardTitle>
+                <CardDescription>
+                  Crie uma nova senha para sua conta
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nova-senha">Nova Senha</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="nova-senha"
+                      type="password"
+                      value={novaSenha}
+                      onChange={(e) => setNovaSenha(e.target.value)}
+                      className="pl-10"
+                      placeholder="Mínimo 6 caracteres"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirmar-senha">Confirmar Nova Senha</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="confirmar-senha"
+                      type="password"
+                      value={confirmarSenha}
+                      onChange={(e) => setConfirmarSenha(e.target.value)}
+                      className="pl-10"
+                      placeholder="Digite a senha novamente"
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  onClick={handleChangeSenha}
+                  disabled={saving}
+                  className="w-full bg-red-600 hover:bg-red-700"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Alterando...
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="h-4 w-4 mr-2" />
+                      Alterar Senha
+                    </>
+                  )}
+                </Button>
+
+                <p className="text-xs text-gray-500 text-center">
+                  Após alterar a senha, você continuará logado
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Links Rápidos */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Link href="/meus-pedidos">
+                <Button variant="outline" className="w-full">
+                  Ver Meus Pedidos
+                </Button>
+              </Link>
+              <Link href="/">
+                <Button variant="outline" className="w-full">
+                  <Home className="h-4 w-4 mr-2" />
+                  Voltar ao Cardápio
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
