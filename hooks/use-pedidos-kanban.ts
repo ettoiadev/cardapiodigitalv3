@@ -174,14 +174,10 @@ export function usePedidosKanban(filtrosIniciais: FiltrosPedidos = {}): UsePedid
             // Recarregar para pegar dados da view
             carregarPedidos()
           } else if (payload.eventType === 'UPDATE') {
-            // Atualizar pedido específico
-            setPedidos(prev => 
-              prev.map(p => 
-                p.id === payload.new.id 
-                  ? { ...p, ...payload.new as Partial<Pedido> }
-                  : p
-              )
-            )
+            // CORREÇÃO: Recarregar da view ao invés de merge
+            // Evita sobrescrever campos agregados (itens_resumo, total_itens) com NULL
+            console.log('🔄 Realtime UPDATE detectado, recarregando da view...')
+            carregarPedidos()
           } else if (payload.eventType === 'DELETE') {
             // Remover pedido
             setPedidos(prev => prev.filter(p => p.id !== payload.old.id))

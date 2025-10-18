@@ -154,25 +154,31 @@ export default function PedidosPage() {
     return grupos
   }, [pedidosFiltrados])
 
-  // Validar se a transição de status é permitida
+  // CORREÇÃO: Validar transições de status com regras mais restritivas
   const validarTransicao = (statusAtual: StatusPedido, novoStatus: StatusPedido): boolean => {
-    // Cancelado pode vir de qualquer status (exceto finalizado)
-    if (novoStatus === 'cancelado' && statusAtual !== 'finalizado') {
+    // Não permitir transição para o mesmo status
+    if (statusAtual === novoStatus) {
+      return false
+    }
+
+    // Cancelado pode vir de qualquer status NÃO FINAL
+    if (novoStatus === 'cancelado' && statusAtual !== 'finalizado' && statusAtual !== 'cancelado') {
       return true
     }
 
-    // Finalizado pode vir de qualquer status (exceto cancelado)
-    if (novoStatus === 'finalizado' && statusAtual !== 'cancelado') {
-      return true
+    // Finalizado APENAS de saiu_entrega ou em_preparo (para pedidos balcão)
+    // Garante que o fluxo seja seguido
+    if (novoStatus === 'finalizado') {
+      return statusAtual === 'saiu_entrega' || statusAtual === 'em_preparo'
     }
 
-    // Transições normais
+    // Transições normais (fluxo sequencial)
     const transicoesPermitidas: Record<StatusPedido, StatusPedido[]> = {
       pendente: ['em_preparo', 'cancelado'],
-      em_preparo: ['saiu_entrega', 'finalizado', 'cancelado'],
+      em_preparo: ['saiu_entrega', 'finalizado', 'cancelado'], // finalizado apenas para balcão
       saiu_entrega: ['finalizado', 'cancelado'],
-      finalizado: [],
-      cancelado: []
+      finalizado: [], // Status final, não permite mudanças
+      cancelado: [] // Status final, não permite mudanças
     }
 
     return transicoesPermitidas[statusAtual]?.includes(novoStatus) || false

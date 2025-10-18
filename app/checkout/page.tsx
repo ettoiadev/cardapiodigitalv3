@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, ShoppingBag, MapPin, Phone, User, CreditCard, DollarSign, Smartphone, Loader2, Plus, Minus, QrCode, Banknote, UtensilsCrossed, Bike, Pizza, MessageCircle, ScanLine, Wallet, ArrowDownToLine, ChevronUp, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -91,6 +91,9 @@ export default function CheckoutPage() {
   const [searchingCep, setSearchingCep] = useState(false)
   const [cepError, setCepError] = useState("")
   
+  // CORREÇÃO: Ref para debounce do CEP
+  const cepDebounceRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  
   // Observações e pagamento
   const [orderNotes, setOrderNotes] = useState("")
   const [paymentMethod, setPaymentMethod] = useState<"pix" | "dinheiro" | "debito" | "credito" | "ticket_alimentacao">("pix")
@@ -128,21 +131,26 @@ export default function CheckoutPage() {
     }
   }, [storeConfig, paymentMethod])
   
+  // CORREÇÃO: Usar ref para evitar race conditions com múltiplos timers
+  const redirectTimerRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  
   // Verificar carrinho vazio e redirecionar se necessário
   useEffect(() => {
-    let mounted = true
+    // Limpar timer anterior se existir
+    if (redirectTimerRef.current) {
+      clearTimeout(redirectTimerRef.current)
+    }
     
     if (!loading && (!state.items || state.items.length === 0)) {
       // Aguardar um momento antes de redirecionar para evitar conflitos
-      const timer = setTimeout(() => {
-        if (mounted) {
-          router.push("/")
-        }
+      redirectTimerRef.current = setTimeout(() => {
+        router.push("/")
       }, 500)
-      
-      return () => {
-        mounted = false
-        clearTimeout(timer)
+    }
+    
+    return () => {
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current)
       }
     }
   }, [state.items?.length, router, loading])
@@ -319,9 +327,9 @@ export default function CheckoutPage() {
     setSearchingCep(true)
     setCepError("")
     
-    // Timeout de 10 segundos
+    // CORREÇÃO: Timeout reduzido para 5 segundos (melhor UX)
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000)
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
     
     try {
       const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`, {
@@ -369,8 +377,13 @@ export default function CheckoutPage() {
     }
   }
   
-  // Máscara de CEP
+  // CORREÇÃO: Máscara de CEP com debounce
   const handleCepChange = (value: string) => {
+    // Limpar debounce anterior
+    if (cepDebounceRef.current) {
+      clearTimeout(cepDebounceRef.current)
+    }
+    
     // Sanitizar entrada removendo caracteres não permitidos
     const sanitized = value.replace(/[^\d-]/g, "")
     
@@ -382,7 +395,10 @@ export default function CheckoutPage() {
     setCep(masked)
     
     if (masked.replace(/\D/g, "").length === 8) {
-      searchCep(masked)
+      // Debounce de 500ms antes de buscar CEP
+      cepDebounceRef.current = setTimeout(() => {
+        searchCep(masked)
+      }, 500)
     } else {
       setAddressData(null)
       setCepError("")
