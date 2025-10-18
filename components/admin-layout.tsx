@@ -6,7 +6,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
-import { LogOut, Settings, Package, Home, Menu, X, Users, MapPin, Bike, Truck, Wallet, BarChart3, MessageCircle, FileText } from "lucide-react"
+import { LogOut, Settings, Package, Home, Menu, X, Users, MapPin, Bike, Truck, Wallet, BarChart3, MessageCircle, FileText, Award } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -44,6 +44,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     { href: "/admin/relatorios", icon: BarChart3, label: "Relatórios" },
     { href: "/admin/notificacoes", icon: MessageCircle, label: "Notificações" },
     { href: "/admin/cupom-fiscal", icon: FileText, label: "Cupom Fiscal" },
+    { href: "/admin/fidelidade", icon: Award, label: "Fidelidade" },
     { href: "/admin/taxas", icon: MapPin, label: "Taxas de Entrega" },
     { href: "/admin/config", icon: Settings, label: "Configurações" },
   ]
