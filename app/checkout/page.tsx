@@ -75,8 +75,16 @@ export default function CheckoutPage() {
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [bordasRecheadas, setBordasRecheadas] = useState<BordaRecheada[]>([])
   
+  // Cliente logado
+  const [clienteLogado, setClienteLogado] = useState<any>(null)
+  const [enderecoSalvo, setEnderecoSalvo] = useState<any>(null)
+  
   // Tipo de entrega
-  const [deliveryType, setDeliveryType] = useState<"balcao" | "delivery">("balcao")
+  const [deliveryType, setDeliveryType] = useState<"balcao" | "delivery">("delivery")
+  
+  // Taxa de entrega dinâmica
+  const [taxaEntrega, setTaxaEntrega] = useState<number>(0)
+  const [buscandoTaxa, setBuscandoTaxa] = useState(false)
   
   // Toast para promoção
   const [showPromocaoToast, setShowPromocaoToast] = useState(false)
@@ -99,29 +107,56 @@ export default function CheckoutPage() {
   const [orderNotes, setOrderNotes] = useState("")
   const [paymentMethod, setPaymentMethod] = useState<"pix" | "dinheiro" | "debito" | "credito" | "ticket_alimentacao">("pix")
   
-  // Carregar dados do usuário autenticado
+  // Carregar dados do cliente logado
   useEffect(() => {
-    const loadUserData = async () => {
+    const loadClienteData = async () => {
       try {
-        const { data: user } = await getUser()
-        if (user && user.user_metadata) {
-          // Preencher dados do formulário com dados do usuário
-          if (user.user_metadata.nome) {
-            setCustomerName(user.user_metadata.nome)
+        const { data: cliente, error } = await getCliente()
+        if (!error && cliente) {
+          console.log("✅ Cliente logado:", cliente)
+          setClienteLogado(cliente)
+          
+          // Preencher dados do formulário
+          setCustomerName(cliente.nome || "")
+          setCustomerPhone(cliente.telefone || "")
+          
+          // Verificar se tem endereço salvo
+          if (cliente.endereco_cep) {
+            setEnderecoSalvo({
+              rua: cliente.endereco_rua,
+              numero: cliente.endereco_numero,
+              bairro: cliente.endereco_bairro,
+              cidade: cliente.endereco_cidade,
+              estado: cliente.endereco_estado,
+              cep: cliente.endereco_cep,
+              complemento: cliente.endereco_complemento,
+              referencia: cliente.endereco_referencia
+            })
+            
+            // Preencher campos
+            setCep(cliente.endereco_cep || "")
+            setAddressNumber(cliente.endereco_numero || "")
+            setAddressComplement(cliente.endereco_complemento || "")
+            
+            // Buscar dados do CEP
+            if (cliente.endereco_cep) {
+              await buscarCEPAutomatico(cliente.endereco_cep)
+            }
+            
+            // Definir delivery como padrão se tem endereço
+            setDeliveryType("delivery")
+          } else {
+            // Sem endereço salvo, padrão é balcão
+            setDeliveryType("balcao")
           }
-          if (user.user_metadata.telefone) {
-            setCustomerPhone(user.user_metadata.telefone)
-          }
-          if (user.email) {
-            // Pode adicionar campo de email se necessário
-          }
-          console.log("✅ Dados do usuário carregados:", user.user_metadata)
+        } else {
+          console.log("ℹ️ Cliente não autenticado")
         }
       } catch (error) {
-        console.log("ℹ️ Usuário não autenticado ou erro ao carregar dados")
+        console.log("ℹ️ Erro ao carregar dados do cliente:", error)
       }
     }
-    loadUserData()
+    loadClienteData()
   }, [])
 
     // Carregar configurações da loja e produtos
@@ -339,7 +374,73 @@ export default function CheckoutPage() {
     setDeliveryType(type)
   }
   
-  // Buscar CEP
+  // Buscar taxa de entrega por CEP
+  const buscarTaxaEntrega = async (cep: string) => {
+    try {
+      setBuscandoTaxa(true)
+      const cepLimpo = cep.replace(/\D/g, "")
+      
+      console.log("🔍 Buscando taxa para CEP:", cepLimpo)
+      
+      // Buscar taxa no Supabase
+      const { data, error } = await supabase.rpc('buscar_taxa_por_cep', {
+        p_cep: cepLimpo
+      })
+      
+      if (error) {
+        console.error("Erro ao buscar taxa:", error)
+        // Usar taxa padrão se não encontrar
+        setTaxaEntrega(storeConfig?.taxa_entrega || 0)
+        return
+      }
+      
+      if (data && data.taxa !== undefined) {
+        console.log("✅ Taxa encontrada:", data.taxa)
+        setTaxaEntrega(data.taxa)
+        toast.success(`Taxa de entrega: ${formatCurrency(data.taxa)}`)
+      } else {
+        // Usar taxa padrão
+        const taxaPadrao = storeConfig?.taxa_entrega || 0
+        setTaxaEntrega(taxaPadrao)
+        console.log("ℹ️ Usando taxa padrão:", taxaPadrao)
+      }
+    } catch (error) {
+      console.error("Erro ao buscar taxa:", error)
+      setTaxaEntrega(storeConfig?.taxa_entrega || 0)
+    } finally {
+      setBuscandoTaxa(false)
+    }
+  }
+  
+  // Buscar CEP automaticamente (sem debounce)
+  const buscarCEPAutomatico = async (cep: string) => {
+    const cepLimpo = cep.replace(/\D/g, "")
+    if (cepLimpo.length === 8) {
+      setSearchingCep(true)
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
+        const data = await response.json()
+        
+        if (data.erro) {
+          setCepError("CEP não encontrado")
+          setAddressData(null)
+        } else {
+          setAddressData(data)
+          setCepError("")
+          // Buscar taxa de entrega
+          await buscarTaxaEntrega(cepLimpo)
+        }
+      } catch (error) {
+        console.error("Erro ao buscar CEP:", error)
+        setCepError("Erro ao buscar CEP")
+        setAddressData(null)
+      } finally {
+        setSearchingCep(false)
+      }
+    }
+  }
+  
+  // Buscar CEP via API ViaCEP
   const searchCep = async (cep: string) => {
     const cleanCep = cep.replace(/\D/g, "")
     
@@ -420,12 +521,15 @@ export default function CheckoutPage() {
     
     if (masked.replace(/\D/g, "").length === 8) {
       // Debounce de 500ms antes de buscar CEP
-      cepDebounceRef.current = setTimeout(() => {
-        searchCep(masked)
+      cepDebounceRef.current = setTimeout(async () => {
+        await searchCep(masked)
+        // Buscar taxa de entrega
+        await buscarTaxaEntrega(masked)
       }, 500)
     } else {
       setAddressData(null)
       setCepError("")
+      setTaxaEntrega(0)
     }
   }
   
@@ -757,7 +861,7 @@ export default function CheckoutPage() {
 
   // Preparar dados do pedido
   const prepararDadosPedido = () => {
-    const deliveryFee = deliveryType === "delivery" ? (storeConfig?.taxa_entrega || 0) : 0
+    const deliveryFee = deliveryType === "delivery" ? taxaEntrega : 0
     const subtotal = state.total || 0
     const total = subtotal + deliveryFee
     
@@ -902,7 +1006,7 @@ export default function CheckoutPage() {
   }
   
   const subtotal = state.total || 0
-  const deliveryFee = deliveryType === "delivery" ? (storeConfig?.taxa_entrega || 0) : 0
+  const deliveryFee = deliveryType === "delivery" ? taxaEntrega : 0
   const total = subtotal + deliveryFee
   
   return (
@@ -953,7 +1057,16 @@ export default function CheckoutPage() {
                   </div>
                   <div>
                     <span className="font-semibold text-[15px] text-neutral-800 block">Delivery</span>
-                    <p className="text-sm text-neutral-500 mt-1">Taxa: {formatCurrency(storeConfig?.taxa_entrega || 0)}</p>
+                    <p className="text-sm text-neutral-500 mt-1">
+                      {buscandoTaxa ? (
+                        <span className="flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Calculando...
+                        </span>
+                      ) : (
+                        `Taxa: ${formatCurrency(taxaEntrega)}`
+                      )}
+                    </p>
                   </div>
                 </div>
               </div>
