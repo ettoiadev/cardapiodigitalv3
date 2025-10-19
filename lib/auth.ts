@@ -638,3 +638,472 @@ export async function getUserId(): Promise<string | null> {
   const { data } = await getUser()
   return data?.id || null
 }
+
+// ============================================================================
+// SISTEMA DE MÚLTIPLOS ENDEREÇOS
+// ============================================================================
+
+/**
+ * Dados de um endereço do cliente
+ */
+export interface EnderecoCliente {
+  id: string
+  cliente_id: string
+  apelido: string // Ex: "Casa", "Trabalho"
+  principal: boolean
+  cep: string
+  logradouro: string
+  numero: string
+  complemento: string | null
+  bairro: string
+  cidade: string
+  estado: string
+  referencia: string | null
+  criado_em: string
+  atualizado_em: string
+}
+
+/**
+ * Dados para criar/atualizar endereço
+ */
+export interface EnderecoInput {
+  apelido: string
+  principal?: boolean
+  cep: string
+  logradouro: string
+  numero: string
+  complemento?: string
+  bairro: string
+  cidade: string
+  estado: string
+  referencia?: string
+}
+
+/**
+ * Resposta da API ViaCEP
+ */
+export interface ViaCEPResponse {
+  cep: string
+  logradouro: string
+  complemento: string
+  bairro: string
+  localidade: string // cidade
+  uf: string // estado
+  erro?: boolean
+}
+
+/**
+ * Busca endereço pelo CEP usando API ViaCEP
+ * 
+ * @param cep - CEP a ser consultado (com ou sem formatação)
+ * @returns Dados do endereço ou erro
+ */
+export async function buscarCEP(cep: string): Promise<AuthResponse<ViaCEPResponse>> {
+  try {
+    // Limpar CEP (remover formatação)
+    const cepLimpo = cep.replace(/\D/g, '')
+    
+    // Validar CEP
+    if (!validateCEP(cepLimpo)) {
+      return {
+        data: null,
+        error: 'CEP inválido. Deve conter 8 dígitos.'
+      }
+    }
+    
+    // Buscar na API ViaCEP
+    const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
+    
+    if (!response.ok) {
+      return {
+        data: null,
+        error: 'Erro ao consultar CEP. Tente novamente.'
+      }
+    }
+    
+    const data: ViaCEPResponse = await response.json()
+    
+    // Verificar se CEP foi encontrado
+    if (data.erro) {
+      return {
+        data: null,
+        error: 'CEP não encontrado.'
+      }
+    }
+    
+    return {
+      data,
+      error: null
+    }
+  } catch (error) {
+    console.error('Erro ao buscar CEP:', error)
+    return {
+      data: null,
+      error: 'Erro ao consultar CEP. Verifique sua conexão.'
+    }
+  }
+}
+
+/**
+ * Lista todos os endereços do cliente autenticado
+ * 
+ * @returns Lista de endereços ou erro
+ */
+export async function listarEnderecos(): Promise<AuthResponse<EnderecoCliente[]>> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return {
+        data: null,
+        error: 'Usuário não autenticado'
+      }
+    }
+    
+    const { data, error } = await supabase
+      .from('enderecos_clientes')
+      .select('*')
+      .eq('cliente_id', user.id)
+      .order('principal', { ascending: false })
+      .order('criado_em', { ascending: false })
+    
+    if (error) {
+      console.error('Erro ao listar endereços:', error)
+      return {
+        data: null,
+        error: 'Erro ao carregar endereços'
+      }
+    }
+    
+    return {
+      data: data || [],
+      error: null
+    }
+  } catch (error) {
+    console.error('Erro ao listar endereços:', error)
+    return {
+      data: null,
+      error: 'Erro ao carregar endereços'
+    }
+  }
+}
+
+/**
+ * Busca o endereço principal do cliente
+ * 
+ * @returns Endereço principal ou null
+ */
+export async function getEnderecoPrincipal(): Promise<AuthResponse<EnderecoCliente>> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return {
+        data: null,
+        error: 'Usuário não autenticado'
+      }
+    }
+    
+    const { data, error } = await supabase
+      .from('enderecos_clientes')
+      .select('*')
+      .eq('cliente_id', user.id)
+      .eq('principal', true)
+      .single()
+    
+    if (error && error.code !== 'PGRST116') { // PGRST116 = not found
+      console.error('Erro ao buscar endereço principal:', error)
+      return {
+        data: null,
+        error: 'Erro ao carregar endereço principal'
+      }
+    }
+    
+    return {
+      data: data || null,
+      error: null
+    }
+  } catch (error) {
+    console.error('Erro ao buscar endereço principal:', error)
+    return {
+      data: null,
+      error: 'Erro ao carregar endereço principal'
+    }
+  }
+}
+
+/**
+ * Cria um novo endereço para o cliente
+ * 
+ * @param endereco - Dados do endereço
+ * @returns Endereço criado ou erro
+ */
+export async function criarEndereco(endereco: EnderecoInput): Promise<AuthResponse<EnderecoCliente>> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return {
+        data: null,
+        error: 'Usuário não autenticado'
+      }
+    }
+    
+    // Validar dados
+    const cepLimpo = cleanCEP(endereco.cep)
+    if (!validateCEP(cepLimpo)) {
+      return {
+        data: null,
+        error: 'CEP inválido'
+      }
+    }
+    
+    if (!validateEstado(endereco.estado)) {
+      return {
+        data: null,
+        error: 'Estado inválido. Use a sigla (ex: SP)'
+      }
+    }
+    
+    if (!endereco.apelido || endereco.apelido.trim().length < 2) {
+      return {
+        data: null,
+        error: 'Apelido do endereço é obrigatório (ex: Casa, Trabalho)'
+      }
+    }
+    
+    if (!endereco.numero || endereco.numero.trim().length < 1) {
+      return {
+        data: null,
+        error: 'Número do endereço é obrigatório'
+      }
+    }
+    
+    // Criar endereço
+    const { data, error } = await supabase
+      .from('enderecos_clientes')
+      .insert({
+        cliente_id: user.id,
+        apelido: endereco.apelido.trim(),
+        principal: endereco.principal || false,
+        cep: cepLimpo,
+        logradouro: endereco.logradouro.trim(),
+        numero: endereco.numero.trim(),
+        complemento: endereco.complemento?.trim() || null,
+        bairro: endereco.bairro.trim(),
+        cidade: endereco.cidade.trim(),
+        estado: endereco.estado.toUpperCase(),
+        referencia: endereco.referencia?.trim() || null
+      })
+      .select()
+      .single()
+    
+    if (error) {
+      console.error('Erro ao criar endereço:', error)
+      return {
+        data: null,
+        error: 'Erro ao salvar endereço'
+      }
+    }
+    
+    return {
+      data,
+      error: null
+    }
+  } catch (error) {
+    console.error('Erro ao criar endereço:', error)
+    return {
+      data: null,
+      error: 'Erro ao salvar endereço'
+    }
+  }
+}
+
+/**
+ * Atualiza um endereço existente
+ * 
+ * @param id - ID do endereço
+ * @param endereco - Dados a serem atualizados
+ * @returns Endereço atualizado ou erro
+ */
+export async function atualizarEndereco(
+  id: string,
+  endereco: Partial<EnderecoInput>
+): Promise<AuthResponse<EnderecoCliente>> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return {
+        data: null,
+        error: 'Usuário não autenticado'
+      }
+    }
+    
+    // Preparar dados para atualização
+    const updateData: any = {}
+    
+    if (endereco.apelido !== undefined) {
+      if (endereco.apelido.trim().length < 2) {
+        return {
+          data: null,
+          error: 'Apelido do endereço é obrigatório'
+        }
+      }
+      updateData.apelido = endereco.apelido.trim()
+    }
+    
+    if (endereco.principal !== undefined) {
+      updateData.principal = endereco.principal
+    }
+    
+    if (endereco.cep !== undefined) {
+      const cepLimpo = cleanCEP(endereco.cep)
+      if (!validateCEP(cepLimpo)) {
+        return {
+          data: null,
+          error: 'CEP inválido'
+        }
+      }
+      updateData.cep = cepLimpo
+    }
+    
+    if (endereco.logradouro !== undefined) {
+      updateData.logradouro = endereco.logradouro.trim()
+    }
+    
+    if (endereco.numero !== undefined) {
+      if (endereco.numero.trim().length < 1) {
+        return {
+          data: null,
+          error: 'Número do endereço é obrigatório'
+        }
+      }
+      updateData.numero = endereco.numero.trim()
+    }
+    
+    if (endereco.complemento !== undefined) {
+      updateData.complemento = endereco.complemento?.trim() || null
+    }
+    
+    if (endereco.bairro !== undefined) {
+      updateData.bairro = endereco.bairro.trim()
+    }
+    
+    if (endereco.cidade !== undefined) {
+      updateData.cidade = endereco.cidade.trim()
+    }
+    
+    if (endereco.estado !== undefined) {
+      if (!validateEstado(endereco.estado)) {
+        return {
+          data: null,
+          error: 'Estado inválido. Use a sigla (ex: SP)'
+        }
+      }
+      updateData.estado = endereco.estado.toUpperCase()
+    }
+    
+    if (endereco.referencia !== undefined) {
+      updateData.referencia = endereco.referencia?.trim() || null
+    }
+    
+    // Atualizar endereço
+    const { data, error } = await supabase
+      .from('enderecos_clientes')
+      .update(updateData)
+      .eq('id', id)
+      .eq('cliente_id', user.id) // Garantir que é do usuário
+      .select()
+      .single()
+    
+    if (error) {
+      console.error('Erro ao atualizar endereço:', error)
+      return {
+        data: null,
+        error: 'Erro ao atualizar endereço'
+      }
+    }
+    
+    return {
+      data,
+      error: null
+    }
+  } catch (error) {
+    console.error('Erro ao atualizar endereço:', error)
+    return {
+      data: null,
+      error: 'Erro ao atualizar endereço'
+    }
+  }
+}
+
+/**
+ * Define um endereço como principal
+ * 
+ * @param id - ID do endereço
+ * @returns Endereço atualizado ou erro
+ */
+export async function definirEnderecoPrincipal(id: string): Promise<AuthResponse<EnderecoCliente>> {
+  return atualizarEndereco(id, { principal: true })
+}
+
+/**
+ * Deleta um endereço
+ * 
+ * @param id - ID do endereço
+ * @returns Sucesso ou erro
+ */
+export async function deletarEndereco(id: string): Promise<AuthResponse<boolean>> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return {
+        data: null,
+        error: 'Usuário não autenticado'
+      }
+    }
+    
+    // Verificar se é o endereço principal
+    const { data: endereco } = await supabase
+      .from('enderecos_clientes')
+      .select('principal')
+      .eq('id', id)
+      .eq('cliente_id', user.id)
+      .single()
+    
+    if (endereco?.principal) {
+      return {
+        data: null,
+        error: 'Não é possível excluir o endereço principal. Defina outro endereço como principal primeiro.'
+      }
+    }
+    
+    // Deletar endereço
+    const { error } = await supabase
+      .from('enderecos_clientes')
+      .delete()
+      .eq('id', id)
+      .eq('cliente_id', user.id)
+    
+    if (error) {
+      console.error('Erro ao deletar endereço:', error)
+      return {
+        data: null,
+        error: 'Erro ao excluir endereço'
+      }
+    }
+    
+    return {
+      data: true,
+      error: null
+    }
+  } catch (error) {
+    console.error('Erro ao deletar endereço:', error)
+    return {
+      data: null,
+      error: 'Erro ao excluir endereço'
+    }
+  }
+}
