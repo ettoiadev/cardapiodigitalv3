@@ -38,8 +38,8 @@ export default function EntregaPagamentoPage() {
   const [enderecoSalvo, setEnderecoSalvo] = useState<any>(null)
   
   // Forma de pagamento
-  const [tipoPagamento, setTipoPagamento] = useState<"app" | "entrega">("entrega")
-  const [formaPagamento, setFormaPagamento] = useState<"pix" | "mercado_pago" | "dinheiro" | "cartao_debito" | "cartao_credito">("dinheiro")
+  const [tipoPagamento, setTipoPagamento] = useState<"app" | "entrega" | null>(null)
+  const [formaPagamento, setFormaPagamento] = useState<"pix" | "mercado_pago" | "dinheiro" | "cartao_debito" | "cartao_credito" | null>(null)
   
   // Observações e troco
   const [observacoes, setObservacoes] = useState("")
@@ -170,6 +170,11 @@ export default function EntregaPagamentoPage() {
       if (!clienteLogado) {
         toast.error("Você precisa estar logado para finalizar o pedido")
         router.push("/login?returnUrl=/checkout/entrega-pagamento")
+        return
+      }
+      
+      if (!formaPagamento) {
+        toast.error("Selecione uma forma de pagamento")
         return
       }
       
@@ -370,7 +375,7 @@ export default function EntregaPagamentoPage() {
                   : "border-gray-200 bg-white"
               }`}
             >
-              <p className="font-medium text-center">pelo app</p>
+              <p className="font-medium text-center">pagar online</p>
             </button>
             <button
               onClick={() => {
