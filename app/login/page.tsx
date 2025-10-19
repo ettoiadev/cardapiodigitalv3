@@ -56,8 +56,12 @@ function LoginForm() {
     // Sucesso!
     toast.success("Login realizado com sucesso!")
     
-    // Redirecionar usando router.push (mais rápido que window.location)
-    router.push(returnUrl)
+    // CORREÇÃO: Usar window.location ao invés de router.push
+    // Isso garante que os cookies de sessão sejam atualizados no middleware
+    // Aguardar um momento para garantir que a sessão seja estabelecida
+    setTimeout(() => {
+      window.location.href = returnUrl
+    }, 300)
   }
 
   return (

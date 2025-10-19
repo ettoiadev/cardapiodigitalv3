@@ -48,10 +48,15 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
 
-  // Verificar sessão
+  // Verificar sessão e tentar renovar se existir
   const {
     data: { session },
   } = await supabase.auth.getSession()
+  
+  // Se tiver sessão, tentar renovar para garantir que está válida
+  if (session) {
+    await supabase.auth.refreshSession()
+  }
 
   // Rotas protegidas que requerem autenticação
   const protectedRoutes = [
