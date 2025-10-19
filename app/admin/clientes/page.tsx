@@ -36,13 +36,12 @@ interface Cliente {
   nome: string
   telefone: string
   email?: string
-  endereco?: string
-  numero?: string
-  complemento?: string
-  bairro?: string
-  cep?: string
-  referencia?: string
-  observacoes?: string
+  endereco_rua?: string
+  endereco_numero?: string
+  endereco_complemento?: string
+  endereco_bairro?: string
+  endereco_cep?: string
+  endereco_referencia?: string
   ativo: boolean
   criado_em: string
 }
@@ -151,7 +150,7 @@ export default function ClientesPage() {
       cliente.nome.toLowerCase().includes(searchLower) ||
       cliente.telefone.includes(searchTerm) ||
       cliente.email?.toLowerCase().includes(searchLower) ||
-      cliente.bairro?.toLowerCase().includes(searchLower)
+      cliente.endereco_bairro?.toLowerCase().includes(searchLower)
     )
   })
 
@@ -165,9 +164,9 @@ export default function ClientesPage() {
 
   const formatAddress = (cliente: Cliente) => {
     const parts = []
-    if (cliente.endereco) parts.push(cliente.endereco)
-    if (cliente.numero) parts.push(cliente.numero)
-    if (cliente.bairro) parts.push(cliente.bairro)
+    if (cliente.endereco_rua) parts.push(cliente.endereco_rua)
+    if (cliente.endereco_numero) parts.push(cliente.endereco_numero)
+    if (cliente.endereco_bairro) parts.push(cliente.endereco_bairro)
     return parts.join(", ") || "Não informado"
   }
 
