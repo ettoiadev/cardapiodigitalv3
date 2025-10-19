@@ -125,16 +125,16 @@ export default function EntregaPagamentoPage() {
   // Preparar itens
   const prepararItensPedido = () => {
     return (state.items || []).map(item => ({
-      produto_id: item.productId || null,
-      nome_produto: item.name,
-      tamanho: item.size || null,
-      sabores: item.flavors || [],
+      produto_id: item.id || null,
+      nome_produto: item.nome,
+      tamanho: item.tamanho || null,
+      sabores: item.sabores || [],
       adicionais: item.adicionais || [],
       borda_recheada: item.bordaRecheada || null,
-      quantidade: item.quantity,
-      preco_unitario: item.price,
-      preco_total: item.price * item.quantity,
-      observacoes: item.observacoes || null
+      quantidade: item.quantidade,
+      preco_unitario: item.preco,
+      preco_total: item.preco * item.quantidade,
+      observacoes: null
     }))
   }
   
@@ -295,10 +295,10 @@ export default function EntregaPagamentoPage() {
               {state.items?.map((item, index) => (
                 <div key={index} className="flex justify-between text-sm">
                   <span className="text-gray-700">
-                    {item.quantity}x {item.name}
+                    {item.quantidade}x {item.nome}
                   </span>
                   <span className="text-gray-900 font-medium">
-                    {formatCurrency(item.price * item.quantity)}
+                    {formatCurrency(item.preco * item.quantidade)}
                   </span>
                 </div>
               ))}

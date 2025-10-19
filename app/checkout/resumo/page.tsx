@@ -52,7 +52,7 @@ export default function CheckoutResumoPage() {
     try {
       const cepLimpo = cep.replace(/\D/g, "")
       const { data, error } = await supabase.rpc('buscar_taxa_por_cep', {
-        p_cep: cepLimpo
+        cep_input: cepLimpo
       })
       
       if (!error && data && data.taxa !== undefined) {
@@ -163,20 +163,20 @@ export default function CheckoutResumoPage() {
               <div className="flex justify-between items-start mb-2">
                 <div className="flex-1">
                   <div className="flex items-start gap-2">
-                    <span className="text-teal-600 font-medium">{item.quantity}x</span>
+                    <span className="text-teal-600 font-medium">{item.quantidade}x</span>
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900">{item.name}</p>
+                      <p className="font-medium text-gray-900">{item.nome}</p>
                       
                       {/* Detalhes da Pizza */}
-                      {item.size && (
+                      {item.tamanho && (
                         <p className="text-sm text-gray-600 capitalize">
-                          Tamanho: {item.size}
+                          Tamanho: {item.tamanho}
                         </p>
                       )}
                       
-                      {item.flavors && item.flavors.length > 0 && (
+                      {item.sabores && item.sabores.length > 0 && (
                         <p className="text-sm text-gray-600">
-                          {item.flavors.length === 1 ? "Sabor" : "Sabores"}: {item.flavors.map((f: any) => f.nome || f).join(", ")}
+                          {item.sabores.length === 1 ? "Sabor" : "Sabores"}: {item.sabores.join(", ")}
                         </p>
                       )}
                       
@@ -190,21 +190,20 @@ export default function CheckoutResumoPage() {
                       )}
                       
                       {item.adicionais && item.adicionais.length > 0 && (
-                        <p className="text-sm text-gray-600">
-                          Adicionais: {item.adicionais.map((a: any) => a.nome).join(", ")}
-                        </p>
-                      )}
-                      
-                      {item.observacoes && (
-                        <p className="text-sm text-gray-500 italic">
-                          Obs: {item.observacoes}
-                        </p>
+                        <div className="text-sm text-gray-600">
+                          {item.adicionais.map((adicional, idx) => (
+                            <div key={idx}>
+                              {adicional.sabor && <span className="font-medium">{adicional.sabor}: </span>}
+                              {adicional.itens.map((a: any) => a.nome).join(", ")}
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </div>
                 </div>
                 <p className="font-medium text-gray-900 ml-4">
-                  {formatCurrency(item.price * item.quantity)}
+                  {formatCurrency(item.preco * item.quantidade)}
                 </p>
               </div>
             </Card>
