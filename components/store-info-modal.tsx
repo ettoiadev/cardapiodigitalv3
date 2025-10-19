@@ -12,7 +12,6 @@ interface PizzariaConfig {
   taxa_entrega: number
   tempo_entrega_min: number
   tempo_entrega_max: number
-  valor_minimo: number
   aceita_dinheiro: boolean
   aceita_cartao: boolean
   endereco: string | null

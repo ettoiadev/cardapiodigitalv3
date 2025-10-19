@@ -20,7 +20,6 @@ interface StoreConfig {
   nome: string
   whatsapp: string | null
   taxa_entrega: number
-  valor_minimo: number
   aceita_dinheiro?: boolean
   aceita_cartao?: boolean
   aceita_pix?: boolean
@@ -190,7 +189,6 @@ export default function CheckoutPage() {
           nome: "Pizzaria Teste",
           whatsapp: "5511999999999",
           taxa_entrega: 5.00,
-          valor_minimo: 25.00,
           aceita_dinheiro: true,
           aceita_cartao: true,
           aceita_pix: true,
@@ -203,7 +201,7 @@ export default function CheckoutPage() {
 
       const { data, error } = await supabase
         .from("pizzaria_config")
-        .select("nome, whatsapp, taxa_entrega, valor_minimo, aceita_dinheiro, aceita_cartao, aceita_pix, aceita_ticket_alimentacao, habilitar_bordas_recheadas, habilitar_broto")
+        .select("nome, whatsapp, aceita_dinheiro, aceita_cartao, aceita_pix, aceita_ticket_alimentacao, habilitar_bordas_recheadas, habilitar_broto")
         .single()
       
       if (error || !data) {
@@ -214,7 +212,6 @@ export default function CheckoutPage() {
           nome: "Pizzaria Configuração Pendente",
           whatsapp: "5511999999999",
           taxa_entrega: 5.00,
-          valor_minimo: 25.00,
           aceita_dinheiro: true,
           aceita_cartao: true,
           aceita_pix: true,
@@ -232,7 +229,8 @@ export default function CheckoutPage() {
         const configComFallback = {
           ...data,
           nome: data.nome || "Pizzaria",
-          whatsapp: data.whatsapp || "5511999999999"
+          whatsapp: data.whatsapp || "5511999999999",
+          taxa_entrega: data.taxa_entrega || 5.00
         }
         setStoreConfig(configComFallback)
         return
@@ -247,7 +245,6 @@ export default function CheckoutPage() {
         nome: "Pizzaria Erro Conexão",
         whatsapp: "5511999999999",
         taxa_entrega: 5.00,
-        valor_minimo: 25.00,
         aceita_dinheiro: true,
         aceita_cartao: true,
         aceita_pix: true,
@@ -450,12 +447,6 @@ export default function CheckoutPage() {
       return false
     }
     
-    // Validar valor mínimo
-    if (storeConfig && subtotal < storeConfig.valor_minimo) {
-      console.warn("❌ Valor mínimo não atingido")
-      return false
-    }
-    
     // Validar método de pagamento habilitado
     if (storeConfig) {
       const methodEnabled = 
@@ -508,7 +499,6 @@ export default function CheckoutPage() {
         cep: customerCep.replace(/\D/g, "").length === 8,
         endereco: addressData !== null,
         numero: addressNumber.trim() !== "",
-        valorMinimo: subtotal >= (storeConfig?.valor_minimo || 0),
         metodoPagamento: true // Já validado acima
       }
       
@@ -532,7 +522,6 @@ export default function CheckoutPage() {
       const validacoes = {
         nome: customerName.trim().length >= 3,
         telefone: phoneDigits.length >= 10 && phoneDigits.length <= 11,
-        valorMinimo: subtotal >= (storeConfig?.valor_minimo || 0),
         metodoPagamento: true // Já validado acima
       }
       
@@ -763,7 +752,6 @@ export default function CheckoutPage() {
       .replace(/[\uFFFD]/g, '') // Remove replacement characters
       // Remove control characters, exceto \n (0x0A)
       .replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F]/g, '')
-      .trim()
   }
 
   // Finalizar pedido
@@ -771,7 +759,6 @@ export default function CheckoutPage() {
     console.log("🔄 Iniciando processo de finalização do pedido...")
     console.log("📋 Validações:", {
       formValida: isFormValid(),
-      valorMinimo: isMinimumMet,
       whatsappConfig: storeConfig?.whatsapp,
       carrinho: state.items?.length || 0
     })
@@ -872,8 +859,6 @@ export default function CheckoutPage() {
   const subtotal = state.total || 0
   const deliveryFee = deliveryType === "delivery" ? (storeConfig?.taxa_entrega || 0) : 0
   const total = subtotal + deliveryFee
-  const minimumValue = storeConfig?.valor_minimo || 0
-  const isMinimumMet = subtotal >= minimumValue
   
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1445,16 +1430,6 @@ export default function CheckoutPage() {
                 <span className="text-green-600">{formatCurrency(total)}</span>
               </div>
             </div>
-            
-            {!isMinimumMet && (
-              <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
-                <p className="text-yellow-800 text-sm">
-                  Valor mínimo: {formatCurrency(minimumValue)}
-                  <br />
-                  Faltam {formatCurrency(minimumValue - subtotal)} para atingir o mínimo
-                </p>
-              </div>
-            )}
           </div>
         </Card>
       </div>
@@ -1465,7 +1440,7 @@ export default function CheckoutPage() {
         
         <Button
           onClick={handleFinishOrder}
-          disabled={!isMinimumMet || !isFormValid() || submitting}
+          disabled={!isFormValid() || submitting}
           className="w-full h-12 text-lg rounded-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 font-bold py-3 flex items-center justify-center gap-2"
         >
           {submitting ? (
