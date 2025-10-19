@@ -177,7 +177,7 @@ export default function EntregaPagamentoPage() {
         quantidade: item.quantidade,
         preco_unitario: item.preco,
         preco_total: item.preco * item.quantidade,
-        observacoes: null
+        observacoes: item.observacoes || null
       }
     })
   }

@@ -21,6 +21,7 @@ export interface CartItem {
     nome: string
     preco: number
   }
+  observacoes?: string // Observações específicas do item (preferências, instruções)
 }
 
 interface CartState {
@@ -35,6 +36,7 @@ type CartAction =
   | { type: "UPDATE_ADICIONAIS"; payload: { id: string; adicionais: { sabor: string; itens: { nome: string; preco: number }[] }[] } }
   | { type: "UPDATE_BORDA"; payload: { id: string; bordaRecheada?: { id: string; nome: string; preco: number } } }
   | { type: "UPDATE_TAMANHO"; payload: { id: string; tamanho: "broto" | "tradicional"; novoPreco: number } }
+  | { type: "UPDATE_OBSERVACOES"; payload: { id: string; observacoes: string } }
   | { type: "CLEAR_CART" }
 
 const CartContext = createContext<{
@@ -240,6 +242,23 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
       return {
         items: newItems,
         total: newTotal,
+      }
+    }
+
+    case "UPDATE_OBSERVACOES": {
+      const newItems = state.items.map((item) => {
+        if (item.id === action.payload.id) {
+          return {
+            ...item,
+            observacoes: action.payload.observacoes
+          }
+        }
+        return item
+      })
+
+      return {
+        items: newItems,
+        total: state.total, // Observações não alteram o preço
       }
     }
 
