@@ -117,7 +117,7 @@ export default function CheckoutResumoPage() {
               onClick={() => setDeliveryType("delivery")}
               className={`flex items-center gap-2 px-6 py-3 rounded-full transition-all ${
                 deliveryType === "delivery"
-                  ? "bg-teal-500 text-white"
+                  ? "bg-red-600 text-white"
                   : "bg-gray-100 text-gray-600"
               }`}
             >
@@ -137,7 +137,7 @@ export default function CheckoutResumoPage() {
               onClick={() => setDeliveryType("balcao")}
               className={`flex items-center gap-2 px-6 py-3 rounded-full transition-all ${
                 deliveryType === "balcao"
-                  ? "bg-teal-500 text-white"
+                  ? "bg-red-600 text-white"
                   : "bg-gray-100 text-gray-600"
               }`}
             >
@@ -166,7 +166,7 @@ export default function CheckoutResumoPage() {
               <div className="flex justify-between items-start mb-2">
                 <div className="flex-1">
                   <div className="flex items-start gap-2">
-                    <span className="text-teal-600 font-medium">{item.quantidade}x</span>
+                    <span className="text-red-600 font-medium">{item.quantidade}x</span>
                     <div className="flex-1">
                       <p className="font-medium text-gray-900">{item.nome}</p>
                       
@@ -186,7 +186,7 @@ export default function CheckoutResumoPage() {
                       {item.bordaRecheada && (
                         <p className="text-sm text-gray-600">
                           Borda: {item.bordaRecheada.nome}
-                          <span className="text-teal-600 ml-2">
+                          <span className="text-red-600 ml-2">
                             + {formatCurrency(item.bordaRecheada.preco)}
                           </span>
                         </p>
@@ -218,7 +218,7 @@ export default function CheckoutResumoPage() {
           {deliveryType === "delivery" && (
             <div className="flex justify-between text-gray-600">
               <span>entrega:</span>
-              <span className="text-teal-600">{formatCurrency(deliveryFee)}</span>
+              <span className="text-red-600">{formatCurrency(deliveryFee)}</span>
             </div>
           )}
           <div className="flex justify-between text-gray-600">

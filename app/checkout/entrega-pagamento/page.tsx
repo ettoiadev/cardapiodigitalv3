@@ -272,7 +272,7 @@ export default function EntregaPagamentoPage() {
                     <div className="flex items-center gap-2 mb-2">
                       <span className="font-medium text-gray-900">Casa</span>
                       <span className="text-gray-400">•</span>
-                      <div className="flex items-center gap-1 text-teal-600">
+                      <div className="flex items-center gap-1 text-red-600">
                         <Bike className="w-4 h-4" />
                         <span className="text-sm">{formatCurrency(taxaEntrega)}</span>
                       </div>
@@ -286,7 +286,7 @@ export default function EntregaPagamentoPage() {
                   </div>
                   <button 
                     onClick={() => router.push("/perfil")}
-                    className="text-teal-600 hover:text-teal-700"
+                    className="text-red-600 hover:text-red-700"
                   >
                     <Edit className="w-5 h-5" />
                   </button>
@@ -332,7 +332,7 @@ export default function EntregaPagamentoPage() {
               {deliveryType === "delivery" && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">entrega:</span>
-                  <span className="text-teal-600">{formatCurrency(deliveryFee)}</span>
+                  <span className="text-red-600">{formatCurrency(deliveryFee)}</span>
                 </div>
               )}
               <div className="flex justify-between font-medium pt-2 border-t">
@@ -400,7 +400,7 @@ export default function EntregaPagamentoPage() {
                       : "border-gray-200 bg-white"
                   }`}
                 >
-                  <Smartphone className="w-6 h-6 text-teal-600" />
+                  <Smartphone className="w-6 h-6 text-red-600" />
                   <span className="font-medium">Pix</span>
                 </button>
                 
