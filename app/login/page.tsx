@@ -76,20 +76,27 @@ function LoginForm() {
       }
 
       console.log("✅ Login bem-sucedido! Sessão:", data?.session?.user?.id)
-      toast.success("Login realizado com sucesso!")
       
-      // CORREÇÃO: Aguardar sessão ser estabelecida e deixar middleware redirecionar
+      // CORREÇÃO: Aguardar sessão ser estabelecida antes de redirecionar
       console.log("⏳ Aguardando sessão ser estabelecida...")
-      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Aguardar para garantir que a sessão seja salva nos cookies
+      await new Promise(resolve => setTimeout(resolve, 800))
       
       // Verificar se a sessão está disponível
       const { data: { session } } = await supabase.auth.getSession()
       if (session && session.user) {
         console.log("✅ Sessão confirmada! Redirecionando para:", returnUrl)
         
-        // CORREÇÃO: Forçar reload da página para middleware processar
-        // Isso garante que o middleware detecte a sessão e redirecione corretamente
-        window.location.href = returnUrl
+        // Mostrar toast de sucesso
+        toast.success("Login realizado com sucesso!")
+        
+        // Aguardar toast ser visível
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        // CORREÇÃO: Forçar reload completo da página para garantir que
+        // o middleware processe a sessão corretamente
+        window.location.replace(returnUrl)
       } else {
         console.error("❌ Sessão não disponível após login!")
         toast.error("Erro ao estabelecer sessão. Tente novamente.")
