@@ -124,18 +124,38 @@ export default function EntregaPagamentoPage() {
   
   // Preparar itens
   const prepararItensPedido = () => {
-    return (state.items || []).map(item => ({
-      produto_id: item.id || null,
-      nome_produto: item.nome,
-      tamanho: item.tamanho || null,
-      sabores: item.sabores || [],
-      adicionais: item.adicionais || [],
-      borda_recheada: item.bordaRecheada || null,
-      quantidade: item.quantidade,
-      preco_unitario: item.preco,
-      preco_total: item.preco * item.quantidade,
-      observacoes: null
-    }))
+    return (state.items || []).map(item => {
+      // Extrair UUID puro do produto_id (remover sufixos como -tradicional, -broto, multi-, etc)
+      let produtoId = null
+      if (item.id) {
+        // Se começa com "multi-", não tem produto_id único
+        if (item.id.startsWith('multi-')) {
+          produtoId = null
+        } else {
+          // Remover sufixos -tradicional ou -broto
+          produtoId = item.id.replace(/-tradicional$|-broto$/g, '')
+          
+          // Validar se é um UUID válido
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+          if (!uuidRegex.test(produtoId)) {
+            produtoId = null
+          }
+        }
+      }
+      
+      return {
+        produto_id: produtoId,
+        nome_produto: item.nome,
+        tamanho: item.tamanho || null,
+        sabores: item.sabores || [],
+        adicionais: item.adicionais || [],
+        borda_recheada: item.bordaRecheada || null,
+        quantidade: item.quantidade,
+        preco_unitario: item.preco,
+        preco_total: item.preco * item.quantidade,
+        observacoes: null
+      }
+    })
   }
   
   // Finalizar pedido
@@ -223,7 +243,7 @@ export default function EntregaPagamentoPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-red-600" />
       </div>
     )
   }
@@ -236,7 +256,7 @@ export default function EntregaPagamentoPage() {
           <button onClick={() => router.back()}>
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
-          <h1 className="text-lg font-normal text-purple-600">entrega e pagamento</h1>
+          <h1 className="text-lg font-normal text-red-600">entrega e pagamento</h1>
         </div>
       </div>
       
@@ -346,7 +366,7 @@ export default function EntregaPagamentoPage() {
               }}
               className={`p-4 rounded-lg border-2 transition-all ${
                 tipoPagamento === "app"
-                  ? "border-purple-600 bg-purple-50"
+                  ? "border-red-600 bg-red-50"
                   : "border-gray-200 bg-white"
               }`}
             >
@@ -359,7 +379,7 @@ export default function EntregaPagamentoPage() {
               }}
               className={`p-4 rounded-lg border-2 transition-all ${
                 tipoPagamento === "entrega"
-                  ? "border-purple-600 bg-purple-50"
+                  ? "border-red-600 bg-red-50"
                   : "border-gray-200 bg-white"
               }`}
             >
@@ -376,7 +396,7 @@ export default function EntregaPagamentoPage() {
                   onClick={() => setFormaPagamento("pix")}
                   className={`w-full p-4 rounded-lg border-2 flex items-center gap-3 transition-all ${
                     formaPagamento === "pix"
-                      ? "border-purple-600 bg-purple-50"
+                      ? "border-red-600 bg-red-50"
                       : "border-gray-200 bg-white"
                   }`}
                 >
@@ -389,7 +409,7 @@ export default function EntregaPagamentoPage() {
                   onClick={() => setFormaPagamento("mercado_pago")}
                   className={`w-full p-4 rounded-lg border-2 flex items-center gap-3 transition-all opacity-50 cursor-not-allowed ${
                     formaPagamento === "mercado_pago"
-                      ? "border-purple-600 bg-purple-50"
+                      ? "border-red-600 bg-red-50"
                       : "border-gray-200 bg-white"
                   }`}
                   disabled
@@ -410,7 +430,7 @@ export default function EntregaPagamentoPage() {
                   onClick={() => setFormaPagamento("dinheiro")}
                   className={`w-full p-4 rounded-lg border-2 flex items-center gap-3 transition-all ${
                     formaPagamento === "dinheiro"
-                      ? "border-purple-600 bg-purple-50"
+                      ? "border-red-600 bg-red-50"
                       : "border-gray-200 bg-white"
                   }`}
                 >
@@ -436,7 +456,7 @@ export default function EntregaPagamentoPage() {
                   onClick={() => setFormaPagamento("cartao_debito")}
                   className={`w-full p-4 rounded-lg border-2 flex items-center gap-3 transition-all ${
                     formaPagamento === "cartao_debito"
-                      ? "border-purple-600 bg-purple-50"
+                      ? "border-red-600 bg-red-50"
                       : "border-gray-200 bg-white"
                   }`}
                 >
@@ -449,11 +469,11 @@ export default function EntregaPagamentoPage() {
                   onClick={() => setFormaPagamento("cartao_credito")}
                   className={`w-full p-4 rounded-lg border-2 flex items-center gap-3 transition-all ${
                     formaPagamento === "cartao_credito"
-                      ? "border-purple-600 bg-purple-50"
+                      ? "border-red-600 bg-red-50"
                       : "border-gray-200 bg-white"
                   }`}
                 >
-                  <CreditCard className="w-6 h-6 text-purple-600" />
+                  <CreditCard className="w-6 h-6 text-red-600" />
                   <span className="font-medium">Cartão Crédito</span>
                 </button>
               </>
@@ -468,7 +488,7 @@ export default function EntregaPagamentoPage() {
           <Button
             onClick={handleFinalizarPedido}
             disabled={submitting || (deliveryType === "delivery" && !enderecoSalvo)}
-            className="w-full h-14 text-lg font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg disabled:opacity-50"
+            className="w-full h-14 text-lg font-semibold bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50"
           >
             {submitting ? (
               <>

@@ -14,12 +14,7 @@ export default function CheckoutPage() {
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Loader2 className="w-8 h-8 animate-spin text-red-600" />
+      <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
     </div>
   )
 }
-
-// BACKUP: O arquivo antigo (1657 linhas) foi salvo em page.backup-20251019.tsx
-// NOVO FLUXO:
-// - Etapa 1: /checkout/resumo (Resumo do Pedido)
-// - Etapa 2: /checkout/entrega-pagamento (Entrega e Pagamento)

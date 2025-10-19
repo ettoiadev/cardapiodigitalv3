@@ -55,10 +55,13 @@ export default function CheckoutResumoPage() {
         cep_input: cepLimpo
       })
       
-      if (!error && data && data.taxa !== undefined) {
-        setTaxaEntrega(data.taxa)
+      // A função retorna um array, pegar o primeiro resultado
+      if (!error && data && Array.isArray(data) && data.length > 0 && data[0].taxa !== undefined) {
+        setTaxaEntrega(data[0].taxa)
+        console.log("✅ Taxa encontrada:", data[0].taxa)
       } else {
-        // Taxa padrão
+        // Taxa padrão se não encontrar
+        console.log("ℹ️ Taxa não encontrada para CEP, usando taxa padrão")
         const { data: config } = await supabase
           .from("pizzaria_config")
           .select("taxa_entrega")
@@ -98,7 +101,7 @@ export default function CheckoutResumoPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-red-600" />
       </div>
     )
   }
@@ -238,7 +241,7 @@ export default function CheckoutResumoPage() {
         <div className="max-w-2xl mx-auto">
           <Button
             onClick={handleContinuar}
-            className="w-full h-14 text-lg font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+            className="w-full h-14 text-lg font-semibold bg-red-600 hover:bg-red-700 text-white rounded-lg"
           >
             CONTINUAR
             <ChevronRight className="w-5 h-5 ml-2" />
