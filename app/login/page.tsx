@@ -56,12 +56,39 @@ function LoginForm() {
     // Sucesso!
     toast.success("Login realizado com sucesso!")
     
-    // CORREÇÃO: Usar window.location ao invés de router.push
-    // Isso garante que os cookies de sessão sejam atualizados no middleware
-    // Aguardar um momento para garantir que a sessão seja estabelecida
+    // DEBUG: Logs extensivos
+    console.log('✅ Login successful!')
+    console.log('📍 Return URL:', returnUrl)
+    console.log('🔐 Session data:', data)
+    
+    // CORREÇÃO: Aguardar sessão ser salva em localStorage
+    console.log('⏳ Aguardando sessão ser salva...')
+    
+    // Verificar se sessão foi salva
+    let attempts = 0
+    const maxAttempts = 10
+    const checkInterval = setInterval(() => {
+      const sessionToken = localStorage.getItem('sb-auth-token')
+      attempts++
+      
+      if (sessionToken) {
+        console.log('✅ Sessão salva em localStorage!')
+        console.log('🚀 Redirecionando para:', returnUrl)
+        clearInterval(checkInterval)
+        window.location.href = returnUrl
+      } else if (attempts >= maxAttempts) {
+        console.log('⚠️ Timeout aguardando sessão, tentando redirecionar mesmo assim...')
+        clearInterval(checkInterval)
+        window.location.href = returnUrl
+      }
+    }, 100)
+    
+    // Timeout de segurança (1 segundo)
     setTimeout(() => {
+      clearInterval(checkInterval)
+      console.log('🔄 Timeout atingido, forçando redirecionamento')
       window.location.href = returnUrl
-    }, 300)
+    }, 1000)
   }
 
   return (

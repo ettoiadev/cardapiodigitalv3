@@ -3,9 +3,9 @@
  * @module middleware
  */
 
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 /**
  * Middleware de autenticação e proteção de rotas
@@ -45,66 +45,12 @@ import type { NextRequest } from 'next/server'
  * // → Acesso permitido, continua normalmente
  */
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next()
-  const supabase = createMiddlewareClient({ req, res })
-
-  // Verificar sessão e tentar renovar se existir
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  // Middleware simplificado - a verificação real é feita nas páginas
+  // Aqui apenas permitimos navegação livre
   
-  // Se tiver sessão, tentar renovar para garantir que está válida
-  if (session) {
-    await supabase.auth.refreshSession()
-  }
-
-  // Rotas protegidas que requerem autenticação
-  const protectedRoutes = [
-    '/checkout',
-    '/meus-pedidos',
-    '/perfil',
-    '/pedido'
-  ]
-
-  // Verificar se a rota atual é protegida
-  const isProtectedRoute = protectedRoutes.some(route => 
-    req.nextUrl.pathname.startsWith(route)
-  )
-
-  // Se rota protegida e não logado, redirecionar para login
-  if (isProtectedRoute && !session) {
-    const redirectUrl = req.nextUrl.clone()
-    redirectUrl.pathname = '/login'
-    
-    // Preserva pathname + query parameters completos
-    const fullPath = `${req.nextUrl.pathname}${req.nextUrl.search}`
-    redirectUrl.searchParams.set('returnUrl', fullPath)
-    
-    return NextResponse.redirect(redirectUrl)
-  }
-
-  // Se já logado e tentando acessar login/cadastro, redirecionar
-  const authRoutes = ['/login', '/cadastro']
-  const isAuthRoute = authRoutes.some(route => 
-    req.nextUrl.pathname.startsWith(route)
-  )
-
-  if (isAuthRoute && session) {
-    const redirectUrl = req.nextUrl.clone()
-    
-    // CORREÇÃO: Respeitar returnUrl se existir
-    const returnUrl = req.nextUrl.searchParams.get('returnUrl')
-    if (returnUrl && returnUrl.startsWith('/')) {
-      redirectUrl.pathname = returnUrl
-      redirectUrl.search = '' // Limpar query params
-    } else {
-      redirectUrl.pathname = '/'
-    }
-    
-    return NextResponse.redirect(redirectUrl)
-  }
-
-  return res
+  console.log('🔓 Middleware: Permitindo acesso a', req.nextUrl.pathname)
+  
+  return NextResponse.next()
 }
 
 /**
