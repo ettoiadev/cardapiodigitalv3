@@ -14,7 +14,8 @@ import { useCart } from "@/lib/cart-context"
 import { useConfig } from "@/lib/config-context"
 import { formatCurrency } from "@/lib/currency-utils"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
-import { getUser } from "@/lib/auth-helpers"
+import { getCliente } from "@/lib/auth"
+import { toast } from "sonner"
 
 interface StoreConfig {
   nome: string
@@ -754,86 +755,130 @@ export default function CheckoutPage() {
       .replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F]/g, '')
   }
 
-  // Finalizar pedido
-  const handleFinishOrder = () => {
+  // Preparar dados do pedido
+  const prepararDadosPedido = () => {
+    const deliveryFee = deliveryType === "delivery" ? (storeConfig?.taxa_entrega || 0) : 0
+    const subtotal = state.total || 0
+    const total = subtotal + deliveryFee
+    
+    return {
+      cliente_id: null, // Será preenchido se autenticado
+      nome_cliente: customerName,
+      telefone_cliente: customerPhone,
+      tipo_entrega: deliveryType,
+      endereco: deliveryType === "delivery" ? {
+        rua: addressData?.logradouro || "",
+        numero: addressNumber,
+        bairro: addressData?.bairro || "",
+        cidade: addressData?.localidade || "",
+        estado: addressData?.uf || "",
+        cep: customerCep,
+        complemento: addressComplement
+      } : {},
+      forma_pagamento: paymentMethod,
+      subtotal,
+      taxa_entrega: deliveryFee,
+      total,
+      observacoes: orderNotes,
+      troco_para: paymentMethod === "dinheiro" ? (changeFor || null) : null
+    }
+  }
+
+  // Preparar itens do pedido
+  const prepararItensPedido = () => {
+    return (state.items || []).map(item => ({
+      produto_id: item.productId || null,
+      nome_produto: item.name,
+      tamanho: item.size || null,
+      sabores: item.flavors || [],
+      adicionais: item.adicionais || [],
+      borda_recheada: item.bordaRecheada || null,
+      quantidade: item.quantity,
+      preco_unitario: item.price,
+      preco_total: item.price * item.quantity,
+      observacoes: item.observacoes || null
+    }))
+  }
+
+  // Finalizar pedido (NOVO - Salva no banco)
+  const handleFinishOrder = async () => {
     console.log("🔄 Iniciando processo de finalização do pedido...")
     console.log("📋 Validações:", {
       formValida: isFormValid(),
-      whatsappConfig: storeConfig?.whatsapp,
       carrinho: state.items?.length || 0
     })
     
-    if (!storeConfig?.whatsapp) {
-      console.error("❌ Erro: WhatsApp da pizzaria não configurado")
-      alert("Erro: WhatsApp da pizzaria não configurado. Entre em contato com o administrador.")
+    if (!isFormValid()) {
+      toast.error("Por favor, preencha todos os campos obrigatórios")
       return
     }
 
     setSubmitting(true)
     
     try {
-      const message = generateWhatsAppMessage()
-      console.log("📝 Mensagem gerada:", message.length > 0 ? "✅ OK" : "❌ Vazia")
+      // Verificar se cliente está autenticado
+      const { data: cliente } = await getCliente()
       
-      const rawWhatsappNumber = storeConfig.whatsapp
-      const whatsappNumber = sanitizeWhatsappNumber(rawWhatsappNumber)
-      console.log("📱 Número processado:", { original: rawWhatsappNumber, processado: whatsappNumber })
+      const dadosPedido = prepararDadosPedido()
+      const itensPedido = prepararItensPedido()
       
-      if (!whatsappNumber) {
-        console.error("❌ Erro: Número WhatsApp inválido")
-        alert("Erro: Número WhatsApp inválido. Entre em contato com o administrador.")
-        setSubmitting(false)
-        return
+      // Se autenticado, usar ID do cliente
+      if (cliente) {
+        dadosPedido.cliente_id = cliente.id
+        console.log("✅ Cliente autenticado:", cliente.email)
+      } else {
+        console.log("ℹ️ Cliente não autenticado, usando dados do formulário")
       }
       
-      // Limpar caracteres problemáticos da mensagem
-      let mensagemFinal = sanitizeMessage(message)
+      console.log("📦 Criando pedido no banco de dados...")
       
-      // Verificar tamanho da mensagem (WhatsApp tem limite de ~2048 caracteres na URL)
-      if (mensagemFinal.length > 1500) {
-        console.warn("⚠️ Mensagem muito longa, truncando...")
-        mensagemFinal = mensagemFinal.substring(0, 1400) + "\n\n... (mensagem truncada)"
-      }
-      
-      // Construir URL do WhatsApp (wa.me é mais compatível)
-      let whatsappWebUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(mensagemFinal)}`
-      
-      // Verificar se a URL final não excede limites do navegador
-      if (whatsappWebUrl.length > 2000) {
-        console.warn("⚠️ URL muito longa, reduzindo mensagem...")
-        const reducedMessage = mensagemFinal.substring(0, 1000) + "\n\n... (mensagem reduzida)"
-        whatsappWebUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(reducedMessage)}`
-      }
-      
-      console.log("📱 Preparando envio para WhatsApp:", { 
-        numeroProcessado: whatsappNumber, 
-        tamanhoMensagem: mensagemFinal.length,
-        urlLength: whatsappWebUrl.length 
+      // Chamar função do Supabase
+      const { data, error } = await supabase.rpc('criar_pedido_online', {
+        p_cliente_id: dadosPedido.cliente_id,
+        p_nome_cliente: dadosPedido.nome_cliente,
+        p_telefone_cliente: dadosPedido.telefone_cliente,
+        p_tipo_entrega: dadosPedido.tipo_entrega,
+        p_endereco: dadosPedido.endereco,
+        p_forma_pagamento: dadosPedido.forma_pagamento,
+        p_subtotal: dadosPedido.subtotal,
+        p_taxa_entrega: dadosPedido.taxa_entrega,
+        p_total: dadosPedido.total,
+        p_observacoes: dadosPedido.observacoes,
+        p_troco_para: dadosPedido.troco_para,
+        p_itens: itensPedido
       })
       
-      // Usar wa.me em todos os casos para máxima compatibilidade
-      try {
-        console.log("📱 Abrindo WhatsApp via wa.me...")
-        window.open(whatsappWebUrl, '_blank')
-      } catch (error) {
-        console.error("❌ Erro ao abrir WhatsApp:", error)
-        // Fallback: tentar com window.location
-        try {
-          window.location.href = whatsappWebUrl
-        } catch (fallbackError) {
-          console.error("❌ Erro no fallback:", fallbackError)
-          alert("Erro ao abrir WhatsApp. Copie o link manualmente: " + whatsappWebUrl)
-        }
+      if (error) {
+        console.error("❌ Erro ao criar pedido:", error)
+        throw error
       }
       
-      // Resetar estado após um pequeno delay
+      if (!data || !data.success) {
+        console.error("❌ Erro retornado pela função:", data)
+        throw new Error(data?.error || 'Erro ao criar pedido')
+      }
+      
+      console.log("✅ Pedido criado com sucesso:", data)
+      
+      // Sucesso!
+      toast.success(`Pedido ${data.numero_pedido} criado com sucesso!`, {
+        description: "Você será redirecionado para acompanhar seu pedido"
+      })
+      
+      // Limpar carrinho
+      dispatch({ type: 'CLEAR_CART' })
+      
+      // Aguardar um momento para o usuário ver o toast
       setTimeout(() => {
-        setSubmitting(false)
-      }, 500)
+        // Redirecionar para página de acompanhamento
+        router.push(`/pedido/${data.pedido_id}`)
+      }, 1500)
       
     } catch (error) {
-      console.error("❌ Erro ao processar pedido:", error)
-      alert("Erro ao processar pedido. Tente novamente.")
+      console.error("❌ Erro ao criar pedido:", error)
+      toast.error("Erro ao finalizar pedido", {
+        description: "Por favor, tente novamente ou entre em contato conosco"
+      })
       setSubmitting(false)
     }
   }
@@ -1444,16 +1489,19 @@ export default function CheckoutPage() {
           className="w-full h-12 text-lg rounded-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 font-bold py-3 flex items-center justify-center gap-2"
         >
           {submitting ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Criando pedido...
+            </>
           ) : (
             <>
-              <MessageCircle className="w-5 h-5" />
+              <ShoppingBag className="w-5 h-5" />
               Finalizar Pedido
             </>
           )}
         </Button>
-        <p className="text-sm text-green-600 font-semibold text-center mt-2">
-          Você será redirecionado ao WhatsApp da pizzaria
+        <p className="text-sm text-gray-500 text-center mt-2">
+          Você poderá acompanhar seu pedido em tempo real
         </p>
       </div>
 
