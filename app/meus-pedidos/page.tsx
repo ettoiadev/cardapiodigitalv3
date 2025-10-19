@@ -19,7 +19,7 @@ import {
   Home
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
-import { getUser } from "@/lib/auth-helpers"
+import { getCliente } from "@/lib/auth"
 import { formatCurrency } from "@/lib/currency-utils"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -56,12 +56,16 @@ export default function MeusPedidosPage() {
     try {
       setLoading(true)
 
-      // Obter usuário atual
-      const { user } = await getUser()
-      if (!user) {
+      // Obter cliente atual usando mesmo sistema do /perfil
+      const { data: cliente, error: clienteError } = await getCliente()
+      
+      if (clienteError || !cliente) {
+        console.log("❌ Cliente não autenticado, redirecionando...")
         router.push("/login?returnUrl=/meus-pedidos")
         return
       }
+
+      console.log("✅ Cliente autenticado:", cliente.email)
 
       // Buscar pedidos do cliente
       const { data, error } = await supabase
@@ -76,7 +80,7 @@ export default function MeusPedidosPage() {
           total,
           created_at
         `)
-        .eq("cliente_id", user.id)
+        .eq("cliente_id", cliente.id)
         .order("created_at", { ascending: false })
 
       if (error) throw error
