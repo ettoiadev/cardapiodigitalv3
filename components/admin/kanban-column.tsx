@@ -2,7 +2,6 @@
 
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { PedidoCard } from './pedido-card'
 import type { Pedido, ColunaKanban } from '@/types/pedido'
@@ -46,38 +45,53 @@ export function KanbanColumn({ coluna, pedidos, onDetalhes }: KanbanColumnProps)
 
   const totalValor = pedidos.reduce((sum, p) => sum + p.total, 0)
 
+  // Mapear cores de fundo para cada status (estilo Anota AI)
+  const getBackgroundColor = () => {
+    const bgColors = {
+      pendente: 'bg-orange-400',
+      em_preparo: 'bg-orange-500',
+      saiu_entrega: 'bg-blue-500',
+      finalizado: 'bg-green-500',
+      cancelado: 'bg-red-500'
+    }
+    return bgColors[coluna.id] || 'bg-gray-400'
+  }
+
   return (
     <div className="flex-shrink-0 w-80">
-      <Card className={`h-full ${isOver ? 'ring-2 ring-primary' : ''}`}>
-        <CardHeader className={`${coluna.cor} ${coluna.corTexto} pb-3`}>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+      {/* Container com cor de fundo da coluna */}
+      <div className={`${getBackgroundColor()} rounded-lg shadow-lg ${isOver ? 'ring-2 ring-white ring-offset-2' : ''}`}>
+        {/* Header da coluna */}
+        <div className="p-4 pb-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-white">
               {getIcon()}
-              <span>{coluna.titulo}</span>
+              <h3 className="font-bold text-lg">{coluna.titulo}</h3>
             </div>
-            <Badge variant="secondary" className="bg-white/20 text-white">
+            <Badge variant="secondary" className="bg-white/90 text-gray-900 font-bold px-2.5 py-1">
               {pedidos.length}
             </Badge>
-          </CardTitle>
+          </div>
           {totalValor > 0 && (
-            <p className="text-sm font-semibold opacity-90">
-              {formatCurrency(totalValor)}
+            <p className="text-white text-sm font-semibold">
+              Total: {formatCurrency(totalValor)}
             </p>
           )}
-        </CardHeader>
+        </div>
 
-        <CardContent
+        {/* Área de drop dos cards */}
+        <div
           ref={setNodeRef}
-          className="p-3 overflow-y-auto"
-          style={{ maxHeight: 'calc(100vh - 280px)' }}
+          className="px-3 pb-3 overflow-y-auto"
+          style={{ minHeight: '400px', maxHeight: 'calc(100vh - 280px)' }}
         >
           <SortableContext
             items={pedidos.map(p => p.id)}
             strategy={verticalListSortingStrategy}
           >
             {pedidos.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
-                <p className="text-sm">Nenhum pedido</p>
+              <div className="text-center py-12 text-white/80">
+                <p className="text-sm font-medium">Nenhum pedido</p>
               </div>
             ) : (
               pedidos.map(pedido => (
@@ -89,8 +103,8 @@ export function KanbanColumn({ coluna, pedidos, onDetalhes }: KanbanColumnProps)
               ))
             )}
           </SortableContext>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }

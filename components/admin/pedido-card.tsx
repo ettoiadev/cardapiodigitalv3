@@ -2,7 +2,6 @@
 
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { 
@@ -72,83 +71,90 @@ export function PedidoCard({ pedido, onDetalhes }: PedidoCardProps) {
   })
 
   return (
-    <Card
+    <div
       ref={setNodeRef}
       style={style}
-      className={`mb-3 cursor-pointer hover:shadow-lg transition-shadow ${
-        isDragging ? 'shadow-2xl ring-2 ring-primary' : ''
+      className={`mb-3 bg-white rounded-lg shadow-md hover:shadow-xl transition-all ${
+        isDragging ? 'shadow-2xl ring-2 ring-blue-400 scale-105' : ''
       }`}
     >
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
+      {/* Header do Card - Número do Pedido e Badges */}
+      <div className="p-3 border-b border-gray-100">
+        <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-2">
             <div
               {...attributes}
               {...listeners}
               className="cursor-grab active:cursor-grabbing touch-none"
             >
-              <GripVertical className="h-5 w-5 text-gray-400" />
+              <GripVertical className="h-5 w-5 text-gray-400 hover:text-gray-600" />
             </div>
             <div>
-              <h3 className="font-bold text-lg">{pedido.numero_pedido}</h3>
-              <p className="text-xs text-gray-500 flex items-center gap-1">
+              <h3 className="font-bold text-xl text-gray-900">{pedido.numero_pedido}</h3>
+              <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                 <Clock className="h-3 w-3" />
                 {tempoDecorrido}
               </p>
             </div>
           </div>
-          <div className="flex flex-col gap-1 items-end">
+          <div className="flex flex-col gap-1.5 items-end">
             {getTipoEntregaBadge()}
-            <span className="text-xs text-gray-600">{getFormaPagamentoBadge()}</span>
           </div>
         </div>
-      </CardHeader>
+      </div>
 
-      <CardContent className="space-y-3">
+      {/* Corpo do Card */}
+      <div className="p-3 space-y-2.5">
         {/* Informações do Cliente */}
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           {pedido.nome_cliente && (
             <div className="flex items-center gap-2 text-sm">
-              <User className="h-4 w-4 text-gray-500" />
-              <span className="font-medium">{pedido.nome_cliente}</span>
+              <User className="h-4 w-4 text-gray-400 flex-shrink-0" />
+              <span className="font-semibold text-gray-900">{pedido.nome_cliente}</span>
             </div>
           )}
           {pedido.telefone_cliente && (
             <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Phone className="h-4 w-4 text-gray-500" />
+              <Phone className="h-4 w-4 text-gray-400 flex-shrink-0" />
               <span>{pedido.telefone_cliente}</span>
             </div>
           )}
           {pedido.endereco_entrega && (
             <div className="flex items-start gap-2 text-sm text-gray-600">
-              <MapPin className="h-4 w-4 text-gray-500 mt-0.5" />
+              <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0 mt-0.5" />
               <span className="line-clamp-2">{pedido.endereco_entrega}</span>
             </div>
           )}
         </div>
 
+        {/* Forma de Pagamento */}
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-gray-500">Pagamento:</span>
+          <span className="font-semibold text-gray-900">{getFormaPagamentoBadge()}</span>
+        </div>
+
         {/* Itens do Pedido */}
         {pedido.itens_resumo && pedido.itens_resumo.length > 0 && (
-          <div className="border-t pt-2">
-            <div className="flex items-center gap-2 mb-1">
-              <Package className="h-4 w-4 text-gray-500" />
-              <span className="text-xs font-semibold text-gray-700">
+          <div className="border-t border-gray-100 pt-2.5">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Package className="h-4 w-4 text-gray-400" />
+              <span className="text-xs font-bold text-gray-700 uppercase">
                 {pedido.total_itens} {pedido.total_itens === 1 ? 'item' : 'itens'}
               </span>
             </div>
             <div className="space-y-1">
-              {pedido.itens_resumo.slice(0, 3).map((item, index) => (
-                <div key={index} className="text-xs text-gray-600 flex items-center gap-1">
-                  <span className="font-medium">{item.quantidade}x</span>
-                  <span>{item.nome}</span>
+              {pedido.itens_resumo.slice(0, 2).map((item, index) => (
+                <div key={index} className="text-xs text-gray-700 flex items-center gap-1.5">
+                  <span className="font-bold text-gray-900">{item.quantidade}x</span>
+                  <span className="font-medium">{item.nome}</span>
                   {item.tamanho && (
                     <span className="text-gray-500">({item.tamanho})</span>
                   )}
                 </div>
               ))}
-              {pedido.itens_resumo.length > 3 && (
-                <p className="text-xs text-gray-500 italic">
-                  +{pedido.itens_resumo.length - 3} mais...
+              {pedido.itens_resumo.length > 2 && (
+                <p className="text-xs text-gray-500 font-medium">
+                  +{pedido.itens_resumo.length - 2} item(s) a mais
                 </p>
               )}
             </div>
@@ -157,31 +163,34 @@ export function PedidoCard({ pedido, onDetalhes }: PedidoCardProps) {
 
         {/* Observações */}
         {pedido.observacoes && (
-          <div className="border-t pt-2">
-            <p className="text-xs text-gray-600 italic line-clamp-2">
+          <div className="border-t border-gray-100 pt-2.5">
+            <p className="text-xs text-gray-600 italic line-clamp-2 bg-gray-50 p-2 rounded">
               💬 {pedido.observacoes}
             </p>
           </div>
         )}
+      </div>
 
-        {/* Total e Ações */}
-        <div className="border-t pt-2 flex items-center justify-between">
+      {/* Footer - Total e Botão */}
+      <div className="p-3 bg-gray-50 border-t border-gray-100 rounded-b-lg">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs text-gray-500">Total</p>
-            <p className="text-lg font-bold text-green-600">
+            <p className="text-xs text-gray-500 font-medium mb-0.5">Total</p>
+            <p className="text-2xl font-bold text-green-600">
               {formatCurrency(pedido.total)}
             </p>
           </div>
           <Button
-            variant="outline"
+            variant="default"
             size="sm"
             onClick={() => onDetalhes?.(pedido)}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
           >
-            <Eye className="h-4 w-4 mr-1" />
-            Detalhes
+            <Eye className="h-4 w-4 mr-1.5" />
+            Ver Detalhes
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

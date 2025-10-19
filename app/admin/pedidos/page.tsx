@@ -323,7 +323,7 @@ export default function PedidosPage() {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-3 overflow-x-auto pb-4 px-1">
           {COLUNAS.map(coluna => (
             <KanbanColumn
               key={coluna.id}
