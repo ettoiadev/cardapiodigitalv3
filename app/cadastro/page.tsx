@@ -8,26 +8,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { UserPlus, Mail, Lock, User, Phone, ArrowLeft, Loader2 } from "lucide-react"
-import { signUp } from "@/lib/auth-helpers"
+import { signUp } from "@/lib/auth"
 import { toast } from "sonner"
 
 export default function CadastroPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    nome: "",
-    email: "",
-    telefone: "",
-    senha: "",
-    confirmarSenha: ""
-  })
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
-  }
+  const [nome, setNome] = useState("")
+  const [email, setEmail] = useState("")
+  const [telefone, setTelefone] = useState("")
+  const [senha, setSenha] = useState("")
+  const [confirmarSenha, setConfirmarSenha] = useState("")
 
   const formatTelefone = (value: string) => {
     const numbers = value.replace(/\D/g, "")
@@ -39,90 +30,38 @@ export default function CadastroPage() {
 
   const handleTelefoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatTelefone(e.target.value)
-    setFormData({
-      ...formData,
-      telefone: formatted
-    })
-  }
-
-  const validateForm = () => {
-    if (!formData.nome.trim()) {
-      toast.error("Por favor, informe seu nome")
-      return false
-    }
-
-    if (!formData.email.trim()) {
-      toast.error("Por favor, informe seu email")
-      return false
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      toast.error("Por favor, informe um email válido")
-      return false
-    }
-
-    if (!formData.telefone.trim()) {
-      toast.error("Por favor, informe seu telefone")
-      return false
-    }
-
-    if (formData.telefone.replace(/\D/g, "").length < 10) {
-      toast.error("Por favor, informe um telefone válido")
-      return false
-    }
-
-    if (!formData.senha) {
-      toast.error("Por favor, informe uma senha")
-      return false
-    }
-
-    if (formData.senha.length < 6) {
-      toast.error("A senha deve ter no mínimo 6 caracteres")
-      return false
-    }
-
-    if (formData.senha !== formData.confirmarSenha) {
-      toast.error("As senhas não coincidem")
-      return false
-    }
-
-    return true
+    setTelefone(formatted)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!validateForm()) return
+    // Validação de senhas
+    if (senha !== confirmarSenha) {
+      toast.error("As senhas não coincidem")
+      return
+    }
 
     setLoading(true)
 
-    try {
-      const { data, error } = await signUp({
-        nome: formData.nome,
-        email: formData.email,
-        telefone: formData.telefone.replace(/\D/g, ""),
-        senha: formData.senha
-      })
+    // Fazer cadastro usando novo sistema (validações são feitas automaticamente)
+    const { data, error } = await signUp({
+      nome,
+      email,
+      telefone: telefone.replace(/\D/g, ""),
+      senha
+    })
 
-      if (error) {
-        toast.error(error)
-        return
-      }
-
-      toast.success("Cadastro realizado com sucesso!")
-      toast.info("Você já pode fazer login")
-      
-      // Redirecionar para login com returnUrl para checkout
-      setTimeout(() => {
-        router.push("/login?returnUrl=/checkout")
-      }, 1500)
-
-    } catch (error: any) {
-      console.error("Erro no cadastro:", error)
-      toast.error("Erro ao realizar cadastro. Tente novamente.")
-    } finally {
+    if (error) {
+      toast.error(error)
       setLoading(false)
+      return
     }
+
+    toast.success("Cadastro realizado com sucesso!")
+    
+    // Redirecionar para login
+    router.push("/login?returnUrl=/checkout")
   }
 
   return (
@@ -159,8 +98,8 @@ export default function CadastroPage() {
                     name="nome"
                     type="text"
                     placeholder="João Silva"
-                    value={formData.nome}
-                    onChange={handleChange}
+                    value={nome}
+                    onChange={(e) => setNome(e.target.value)}
                     className="pl-10"
                     disabled={loading}
                   />
@@ -177,8 +116,8 @@ export default function CadastroPage() {
                     name="email"
                     type="email"
                     placeholder="seu@email.com"
-                    value={formData.email}
-                    onChange={handleChange}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="pl-10"
                     disabled={loading}
                   />
@@ -195,7 +134,7 @@ export default function CadastroPage() {
                     name="telefone"
                     type="tel"
                     placeholder="(12) 99999-9999"
-                    value={formData.telefone}
+                    value={telefone}
                     onChange={handleTelefoneChange}
                     className="pl-10"
                     maxLength={15}
@@ -214,8 +153,8 @@ export default function CadastroPage() {
                     name="senha"
                     type="password"
                     placeholder="Mínimo 6 caracteres"
-                    value={formData.senha}
-                    onChange={handleChange}
+                    value={senha}
+                    onChange={(e) => setSenha(e.target.value)}
                     className="pl-10"
                     disabled={loading}
                   />
@@ -232,8 +171,8 @@ export default function CadastroPage() {
                     name="confirmarSenha"
                     type="password"
                     placeholder="Digite a senha novamente"
-                    value={formData.confirmarSenha}
-                    onChange={handleChange}
+                    value={confirmarSenha}
+                    onChange={(e) => setConfirmarSenha(e.target.value)}
                     className="pl-10"
                     disabled={loading}
                   />

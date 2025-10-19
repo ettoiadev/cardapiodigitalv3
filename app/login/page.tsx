@@ -8,8 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { LogIn, Mail, Lock, ArrowLeft, Loader2 } from "lucide-react"
-import { signIn } from "@/lib/auth-helpers"
-import { supabase } from "@/lib/supabase"
+import { signIn, validateEmail } from "@/lib/auth"
 import { toast } from "sonner"
 
 function LoginForm() {
@@ -18,96 +17,47 @@ function LoginForm() {
   const returnUrl = searchParams.get("returnUrl") || "/perfil"
   
   const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    email: "",
-    senha: ""
-  })
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
-  }
-
-  const validateForm = () => {
-    if (!formData.email.trim()) {
-      toast.error("Por favor, informe seu email")
-      return false
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      toast.error("Por favor, informe um email válido")
-      return false
-    }
-
-    if (!formData.senha) {
-      toast.error("Por favor, informe sua senha")
-      return false
-    }
-
-    return true
-  }
+  const [email, setEmail] = useState("")
+  const [senha, setSenha] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!validateForm()) return
+    // Validações básicas
+    if (!email.trim()) {
+      toast.error("Por favor, informe seu email")
+      return
+    }
+
+    if (!validateEmail(email)) {
+      toast.error("Por favor, informe um email válido")
+      return
+    }
+
+    if (!senha) {
+      toast.error("Por favor, informe sua senha")
+      return
+    }
 
     setLoading(true)
 
-    try {
-      console.log("🔐 Iniciando login com:", { email: formData.email, returnUrl })
-      
-      const { data, error } = await signIn({
-        email: formData.email,
-        senha: formData.senha
-      })
+    // Fazer login usando novo sistema
+    const { data, error } = await signIn({
+      email,
+      senha
+    })
 
-      if (error) {
-        console.error("❌ Erro no login:", error)
-        if (error.includes("Invalid login credentials")) {
-          toast.error("Email ou senha incorretos")
-        } else {
-          toast.error(error)
-        }
-        setLoading(false)
-        return
-      }
-
-      console.log("✅ Login bem-sucedido! Sessão:", data?.session?.user?.id)
-      
-      // CORREÇÃO: Aguardar sessão ser estabelecida antes de redirecionar
-      console.log("⏳ Aguardando sessão ser estabelecida...")
-      
-      // Aguardar para garantir que a sessão seja salva nos cookies
-      await new Promise(resolve => setTimeout(resolve, 800))
-      
-      // Verificar se a sessão está disponível
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session && session.user) {
-        console.log("✅ Sessão confirmada! Redirecionando para:", returnUrl)
-        
-        // Mostrar toast de sucesso
-        toast.success("Login realizado com sucesso!")
-        
-        // Aguardar toast ser visível
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        // CORREÇÃO: Forçar reload completo da página para garantir que
-        // o middleware processe a sessão corretamente
-        window.location.replace(returnUrl)
-      } else {
-        console.error("❌ Sessão não disponível após login!")
-        toast.error("Erro ao estabelecer sessão. Tente novamente.")
-        setLoading(false)
-      }
-
-    } catch (error: any) {
-      console.error("💥 Erro inesperado no login:", error)
-      toast.error("Erro ao fazer login. Tente novamente.")
+    if (error) {
+      toast.error(error)
       setLoading(false)
+      return
     }
+
+    // Sucesso!
+    toast.success("Login realizado com sucesso!")
+    
+    // Redirecionar usando router.push (mais rápido que window.location)
+    router.push(returnUrl)
   }
 
   return (
@@ -144,8 +94,8 @@ function LoginForm() {
                     name="email"
                     type="email"
                     placeholder="seu@email.com"
-                    value={formData.email}
-                    onChange={handleChange}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="pl-10"
                     disabled={loading}
                     autoFocus
@@ -171,8 +121,8 @@ function LoginForm() {
                     name="senha"
                     type="password"
                     placeholder="Digite sua senha"
-                    value={formData.senha}
-                    onChange={handleChange}
+                    value={senha}
+                    onChange={(e) => setSenha(e.target.value)}
                     className="pl-10"
                     disabled={loading}
                   />

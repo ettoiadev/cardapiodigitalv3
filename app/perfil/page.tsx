@@ -14,33 +14,19 @@ import {
   Phone, 
   MapPin, 
   Lock, 
-  Home,
   Loader2,
   Save,
-  ArrowLeft
+  ArrowLeft,
+  Home
 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
-import { getUser, updatePassword, getClienteData, updateClienteData } from "@/lib/auth-helpers"
+import { getCliente, updateCliente, updatePassword, type Cliente } from "@/lib/auth"
 import { toast } from "sonner"
-
-interface ClienteData {
-  id: string
-  nome: string
-  email: string
-  telefone: string
-  endereco?: string
-  numero?: string
-  bairro?: string
-  cep?: string
-  complemento?: string
-  referencia?: string
-}
 
 export default function PerfilPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [cliente, setCliente] = useState<ClienteData | null>(null)
+  const [cliente, setCliente] = useState<Cliente | null>(null)
 
   // Dados pessoais
   const [nome, setNome] = useState("")
@@ -56,7 +42,6 @@ export default function PerfilPage() {
   const [referencia, setReferencia] = useState("")
 
   // Senha
-  const [senhaAtual, setSenhaAtual] = useState("")
   const [novaSenha, setNovaSenha] = useState("")
   const [confirmarSenha, setConfirmarSenha] = useState("")
 
@@ -65,77 +50,31 @@ export default function PerfilPage() {
   }, [])
 
   const loadCliente = async () => {
-    try {
-      setLoading(true)
+    setLoading(true)
 
-      // Verificar sessão do Supabase
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session || !session.user) {
-        router.push("/login?returnUrl=/perfil")
-        return
-      }
+    // Buscar dados do cliente usando novo sistema
+    const { data, error } = await getCliente()
 
-      // Tentar buscar dados do cliente
-      const { data, error } = await getClienteData(session.user.id)
-      
-      // Se não encontrou o cliente, criar registro automaticamente
-      if (error || !data) {
-        console.log("Cliente não encontrado, criando registro...")
-        
-        // Extrair dados dos metadados do usuário
-        const nome = session.user.user_metadata?.nome || session.user.email?.split('@')[0] || 'Cliente'
-        const telefone = session.user.user_metadata?.telefone || ''
-        
-        // Criar registro na tabela clientes
-        const { data: novoCliente, error: createError } = await supabase
-          .from('clientes')
-          .insert({
-            id: session.user.id,
-            nome: nome,
-            email: session.user.email,
-            telefone: telefone,
-            ativo: true,
-            email_verificado: session.user.email_confirmed_at ? true : false
-          })
-          .select()
-          .single()
-        
-        if (createError) {
-          console.error("Erro ao criar cliente:", createError)
-          toast.error("Erro ao criar perfil. Tente novamente.")
-          return
-        }
-        
-        // Usar dados do novo cliente
-        if (novoCliente) {
-          setCliente(novoCliente)
-          setNome(novoCliente.nome || "")
-          setEmail(novoCliente.email || "")
-          setTelefone(novoCliente.telefone || "")
-          toast.success("Perfil criado com sucesso!")
-        }
-        return
-      }
-
-      // Se encontrou, usar dados existentes
-      if (data) {
-        setCliente(data)
-        setNome(data.nome || "")
-        setEmail(data.email || "")
-        setTelefone(data.telefone || "")
-        setEndereco(data.endereco || "")
-        setNumero(data.numero || "")
-        setBairro(data.bairro || "")
-        setCep(data.cep || "")
-        setComplemento(data.complemento || "")
-        setReferencia(data.referencia || "")
-      }
-    } catch (error) {
-      console.error("Erro ao carregar dados:", error)
-      toast.error("Erro ao carregar dados do perfil")
-    } finally {
-      setLoading(false)
+    if (error) {
+      toast.error(error)
+      router.push("/login?returnUrl=/perfil")
+      return
     }
+
+    if (data) {
+      setCliente(data)
+      setNome(data.nome)
+      setEmail(data.email)
+      setTelefone(data.telefone)
+      setEndereco(data.endereco_rua || "")
+      setNumero(data.endereco_numero || "")
+      setBairro(data.endereco_bairro || "")
+      setCep(data.endereco_cep || "")
+      setComplemento(data.endereco_complemento || "")
+      setReferencia(data.endereco_referencia || "")
+    }
+
+    setLoading(false)
   }
 
   const formatTelefone = (value: string) => {
@@ -160,78 +99,55 @@ export default function PerfilPage() {
   }
 
   const handleSaveDadosPessoais = async () => {
-    if (!nome.trim()) {
-      toast.error("Nome é obrigatório")
-      return
-    }
-
-    if (!telefone.trim()) {
-      toast.error("Telefone é obrigatório")
-      return
-    }
+    if (!cliente) return
 
     setSaving(true)
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session || !session.user) return
+    // Atualizar usando novo sistema (validações automáticas)
+    const { data, error } = await updateCliente(cliente.id, {
+      nome,
+      telefone
+    })
 
-      const { error } = await updateClienteData(session.user.id, {
-        nome,
-        telefone: telefone.replace(/\D/g, "")
-      })
-
-      if (error) throw error
-
-      toast.success("Dados atualizados com sucesso!")
-      loadCliente()
-    } catch (error: any) {
-      console.error("Erro ao salvar:", error)
-      toast.error("Erro ao atualizar dados")
-    } finally {
+    if (error) {
+      toast.error(error)
       setSaving(false)
+      return
     }
+
+    toast.success("Dados atualizados com sucesso!")
+    await loadCliente()
+    setSaving(false)
   }
 
   const handleSaveEndereco = async () => {
+    if (!cliente) return
+
     setSaving(true)
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session || !session.user) return
+    // Atualizar usando novo sistema (validações automáticas)
+    const { data, error } = await updateCliente(cliente.id, {
+      endereco_rua: endereco || undefined,
+      endereco_numero: numero || undefined,
+      endereco_bairro: bairro || undefined,
+      endereco_cep: cep || undefined,
+      endereco_complemento: complemento || undefined,
+      endereco_referencia: referencia || undefined
+    })
 
-      const { error } = await updateClienteData(session.user.id, {
-        endereco: endereco || null,
-        numero: numero || null,
-        bairro: bairro || null,
-        cep: cep.replace(/\D/g, "") || null,
-        complemento: complemento || null,
-        referencia: referencia || null
-      })
-
-      if (error) throw error
-
-      toast.success("Endereço atualizado com sucesso!")
-      loadCliente()
-    } catch (error: any) {
-      console.error("Erro ao salvar:", error)
-      toast.error("Erro ao atualizar endereço")
-    } finally {
+    if (error) {
+      toast.error(error)
       setSaving(false)
+      return
     }
+
+    toast.success("Endereço atualizado com sucesso!")
+    await loadCliente()
+    setSaving(false)
   }
 
   const handleChangeSenha = async () => {
-    if (!novaSenha) {
-      toast.error("Informe a nova senha")
-      return
-    }
-
-    if (novaSenha.length < 6) {
-      toast.error("A senha deve ter no mínimo 6 caracteres")
-      return
-    }
-
+    // Validação de senhas
     if (novaSenha !== confirmarSenha) {
       toast.error("As senhas não coincidem")
       return
@@ -239,21 +155,19 @@ export default function PerfilPage() {
 
     setSaving(true)
 
-    try {
-      const { error } = await updatePassword(novaSenha)
+    // Atualizar senha (validações automáticas)
+    const { data, error } = await updatePassword(novaSenha)
 
-      if (error) throw error
-
-      toast.success("Senha alterada com sucesso!")
-      setSenhaAtual("")
-      setNovaSenha("")
-      setConfirmarSenha("")
-    } catch (error: any) {
-      console.error("Erro ao alterar senha:", error)
-      toast.error("Erro ao alterar senha")
-    } finally {
+    if (error) {
+      toast.error(error)
       setSaving(false)
+      return
     }
+
+    toast.success("Senha alterada com sucesso!")
+    setNovaSenha("")
+    setConfirmarSenha("")
+    setSaving(false)
   }
 
   if (loading) {
