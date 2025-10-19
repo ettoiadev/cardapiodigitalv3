@@ -75,9 +75,49 @@ export default function PerfilPage() {
         return
       }
 
+      // Tentar buscar dados do cliente
       const { data, error } = await getClienteData(session.user.id)
-      if (error) throw error
+      
+      // Se não encontrou o cliente, criar registro automaticamente
+      if (error || !data) {
+        console.log("Cliente não encontrado, criando registro...")
+        
+        // Extrair dados dos metadados do usuário
+        const nome = session.user.user_metadata?.nome || session.user.email?.split('@')[0] || 'Cliente'
+        const telefone = session.user.user_metadata?.telefone || ''
+        
+        // Criar registro na tabela clientes
+        const { data: novoCliente, error: createError } = await supabase
+          .from('clientes')
+          .insert({
+            id: session.user.id,
+            nome: nome,
+            email: session.user.email,
+            telefone: telefone,
+            ativo: true,
+            email_verificado: session.user.email_confirmed_at ? true : false
+          })
+          .select()
+          .single()
+        
+        if (createError) {
+          console.error("Erro ao criar cliente:", createError)
+          toast.error("Erro ao criar perfil. Tente novamente.")
+          return
+        }
+        
+        // Usar dados do novo cliente
+        if (novoCliente) {
+          setCliente(novoCliente)
+          setNome(novoCliente.nome || "")
+          setEmail(novoCliente.email || "")
+          setTelefone(novoCliente.telefone || "")
+          toast.success("Perfil criado com sucesso!")
+        }
+        return
+      }
 
+      // Se encontrou, usar dados existentes
       if (data) {
         setCliente(data)
         setNome(data.nome || "")
