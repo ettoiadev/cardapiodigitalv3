@@ -78,7 +78,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  // Se já logado e tentando acessar login/cadastro, redirecionar para home
+  // Se já logado e tentando acessar login/cadastro, redirecionar
   const authRoutes = ['/login', '/cadastro']
   const isAuthRoute = authRoutes.some(route => 
     req.nextUrl.pathname.startsWith(route)
@@ -86,7 +86,16 @@ export async function middleware(req: NextRequest) {
 
   if (isAuthRoute && session) {
     const redirectUrl = req.nextUrl.clone()
-    redirectUrl.pathname = '/'
+    
+    // CORREÇÃO: Respeitar returnUrl se existir
+    const returnUrl = req.nextUrl.searchParams.get('returnUrl')
+    if (returnUrl && returnUrl.startsWith('/')) {
+      redirectUrl.pathname = returnUrl
+      redirectUrl.search = '' // Limpar query params
+    } else {
+      redirectUrl.pathname = '/'
+    }
+    
     return NextResponse.redirect(redirectUrl)
   }
 
