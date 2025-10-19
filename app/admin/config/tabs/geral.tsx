@@ -48,10 +48,8 @@ interface PizzariaConfig {
   nome: string
   foto_capa: string
   foto_perfil: string
-  taxa_entrega: number
   tempo_entrega_min: number
   tempo_entrega_max: number
-  valor_minimo: number
   aceita_dinheiro: boolean
   aceita_cartao: boolean
   aceita_pix: boolean
@@ -80,10 +78,8 @@ export default function GeralTab() {
     nome: "",
     foto_capa: "",
     foto_perfil: "",
-    taxa_entrega: 5.0,
     tempo_entrega_min: 60,
     tempo_entrega_max: 90,
-    valor_minimo: 20.0,
     aceita_dinheiro: true,
     aceita_cartao: true,
     aceita_pix: true,
@@ -123,9 +119,9 @@ export default function GeralTab() {
   const [loadingCredentials, setLoadingCredentials] = useState(false)
   const [credentialsMessage, setCredentialsMessage] = useState("")
 
-  // Estados para valores formatados
-  const [taxaEntregaFormatada, setTaxaEntregaFormatada] = useState("")
-  const [valorMinimoFormatado, setValorMinimoFormatado] = useState("")
+  // Estados para valores formatados removidos (migração para taxas por bairro)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   // Refs para inputs de arquivo
   const capaInputRef = useRef<HTMLInputElement>(null)
@@ -483,14 +479,6 @@ export default function GeralTab() {
           descricao_pizzas: data.descricao_pizzas || "Pizzas doces e salgadas (Tradicional 8 fatias / Broto 4 fatias)",
         }
         setConfig(configData)
-        
-        // Formatar valores monetários
-        setTaxaEntregaFormatada(formatCurrencyInput((configData.taxa_entrega * 100).toString()))
-        setValorMinimoFormatado(formatCurrencyInput((configData.valor_minimo * 100).toString()))
-      } else {
-        // Valores padrão formatados
-        setTaxaEntregaFormatada(formatCurrencyInput("500")) // R$ 5,00
-        setValorMinimoFormatado(formatCurrencyInput("2000")) // R$ 20,00
       }
     } catch (error) {
       console.error("Erro ao conectar com Supabase:", error)
@@ -1270,54 +1258,12 @@ export default function GeralTab() {
                     Configurações de Entrega
                   </CardTitle>
                   <p className="text-sm text-gray-500 mt-1">
-                    Taxas, tempos e formas de pagamento
+                    Tempos e formas de pagamento
                   </p>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="p-5 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="taxa_entrega" className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" />
-                    Taxa de Entrega
-                  </Label>
-                  <Input
-                    id="taxa_entrega"
-                    type="text"
-                    value={taxaEntregaFormatada}
-                    onChange={(e) => {
-                      const valorFormatado = formatCurrencyInput(e.target.value)
-                      setTaxaEntregaFormatada(valorFormatado)
-                      const valorNumerico = parseCurrencyInput(valorFormatado)
-                      setConfig({ ...config, taxa_entrega: valorNumerico })
-                    }}
-                    placeholder="R$ 0,00"
-                    className="mt-1 rounded-lg border-gray-200 focus:border-green-300 focus:ring-green-200"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="valor_minimo" className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" />
-                    Valor Mínimo
-                  </Label>
-                  <Input
-                    id="valor_minimo"
-                    type="text"
-                    value={valorMinimoFormatado}
-                    onChange={(e) => {
-                      const valorFormatado = formatCurrencyInput(e.target.value)
-                      setValorMinimoFormatado(valorFormatado)
-                      const valorNumerico = parseCurrencyInput(valorFormatado)
-                      setConfig({ ...config, valor_minimo: valorNumerico })
-                    }}
-                    placeholder="R$ 0,00"
-                    className="mt-1 rounded-lg border-gray-200 focus:border-green-300 focus:ring-green-200"
-                  />
-                </div>
-              </div>
-
               <div>
                 <Label className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-3">
                   <Clock className="h-4 w-4" />
@@ -1423,6 +1369,31 @@ export default function GeralTab() {
                     </>
                   )}
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card Informativo - Taxas de Entrega */}
+          <Card className="bg-blue-50 border-blue-200 shadow-lg rounded-2xl overflow-hidden">
+            <CardContent className="pt-6">
+              <div className="flex items-start space-x-3">
+                <Bike className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="text-sm font-semibold text-blue-900 mb-1">
+                    📍 Taxas de Entrega por Bairro
+                  </h3>
+                  <p className="text-sm text-blue-700 mb-2">
+                    Configure taxas de entrega específicas por bairro ou faixa de CEP na aba dedicada.
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => window.location.href = '/admin/taxas'}
+                    className="mt-2"
+                  >
+                    Gerenciar Taxas de Entrega →
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
