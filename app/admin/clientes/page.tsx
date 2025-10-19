@@ -32,6 +32,7 @@ import { toast } from "sonner"
 
 interface Cliente {
   id: string
+  codigo_cliente: string
   nome: string
   telefone: string
   email?: string
@@ -146,6 +147,7 @@ export default function ClientesPage() {
   const filteredClientes = clientes.filter(cliente => {
     const searchLower = searchTerm.toLowerCase()
     return (
+      cliente.codigo_cliente.includes(searchTerm) ||
       cliente.nome.toLowerCase().includes(searchLower) ||
       cliente.telefone.includes(searchTerm) ||
       cliente.email?.toLowerCase().includes(searchLower) ||
@@ -224,7 +226,7 @@ export default function ClientesPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Buscar por nome, telefone, email ou bairro..."
+                placeholder="Buscar por código, nome, telefone, email ou bairro..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -247,6 +249,7 @@ export default function ClientesPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Código</TableHead>
                       <TableHead>Cliente</TableHead>
                       <TableHead>Telefone</TableHead>
                       <TableHead>Endereço</TableHead>
@@ -257,6 +260,11 @@ export default function ClientesPage() {
                   <TableBody>
                     {filteredClientes.map((cliente) => (
                       <TableRow key={cliente.id}>
+                        <TableCell>
+                          <div className="font-mono font-bold text-red-600">
+                            {cliente.codigo_cliente}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-3">
                             <div className="flex-shrink-0 h-10 w-10 bg-red-100 rounded-full flex items-center justify-center">

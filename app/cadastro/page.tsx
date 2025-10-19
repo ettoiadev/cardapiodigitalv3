@@ -99,7 +99,7 @@ export default function CadastroPage() {
                     id="nome"
                     name="nome"
                     type="text"
-                    placeholder="João Silva"
+                    placeholder="Nome completo"
                     value={nome}
                     onChange={(e) => setNome(e.target.value)}
                     className="pl-10"
@@ -117,7 +117,7 @@ export default function CadastroPage() {
                     id="email"
                     name="email"
                     type="email"
-                    placeholder="seu@email.com"
+                    placeholder="Email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10"

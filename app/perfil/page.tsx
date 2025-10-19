@@ -273,6 +273,22 @@ export default function PerfilPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Código do Cliente */}
+                {cliente?.codigo_cliente && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Código do Cliente</p>
+                        <p className="text-2xl font-bold text-red-600">{cliente.codigo_cliente}</p>
+                      </div>
+                      <User className="h-8 w-8 text-red-600" />
+                    </div>
+                    <p className="text-xs text-gray-600 mt-2">
+                      Use este código para identificação em pedidos por telefone
+                    </p>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="nome">Nome Completo</Label>
                   <div className="relative">
@@ -296,7 +312,7 @@ export default function PerfilPage() {
                       value={email}
                       disabled
                       className="pl-10 bg-gray-50"
-                      placeholder="seu@email.com"
+                      placeholder="Email"
                     />
                   </div>
                   <p className="text-xs text-gray-500">

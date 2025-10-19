@@ -19,6 +19,7 @@ import type { User, Session, AuthError } from '@supabase/supabase-js'
  */
 export interface Cliente {
   id: string
+  codigo_cliente: string
   email: string
   nome: string
   telefone: string

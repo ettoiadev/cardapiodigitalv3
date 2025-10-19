@@ -209,7 +209,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSuccess }: Client
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="email@exemplo.com"
+                placeholder="Email"
               />
             </div>
           </div>

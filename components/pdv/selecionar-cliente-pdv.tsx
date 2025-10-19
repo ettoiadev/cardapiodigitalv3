@@ -268,7 +268,7 @@ export function SelecionarClientePDV({
                         <Input
                           value={novoCliente.telefone}
                           onChange={(e) => setNovoCliente({ ...novoCliente, telefone: e.target.value })}
-                          placeholder="(00) 00000-0000"
+                          placeholder="Telefone"
                         />
                       </div>
 
@@ -278,7 +278,7 @@ export function SelecionarClientePDV({
                           type="email"
                           value={novoCliente.email}
                           onChange={(e) => setNovoCliente({ ...novoCliente, email: e.target.value })}
-                          placeholder="email@exemplo.com"
+                          placeholder="Email"
                         />
                       </div>
 
@@ -287,7 +287,7 @@ export function SelecionarClientePDV({
                         <Input
                           value={novoCliente.cep}
                           onChange={(e) => setNovoCliente({ ...novoCliente, cep: e.target.value })}
-                          placeholder="00000-000"
+                          placeholder="CEP"
                         />
                       </div>
 
@@ -296,7 +296,7 @@ export function SelecionarClientePDV({
                         <Input
                           value={novoCliente.endereco}
                           onChange={(e) => setNovoCliente({ ...novoCliente, endereco: e.target.value })}
-                          placeholder="Rua, Avenida..."
+                          placeholder="Endereço"
                         />
                       </div>
 
@@ -306,7 +306,7 @@ export function SelecionarClientePDV({
                           <Input
                             value={novoCliente.numero}
                             onChange={(e) => setNovoCliente({ ...novoCliente, numero: e.target.value })}
-                            placeholder="123"
+                            placeholder="Número"
                           />
                         </div>
                         <div>
@@ -314,7 +314,7 @@ export function SelecionarClientePDV({
                           <Input
                             value={novoCliente.bairro}
                             onChange={(e) => setNovoCliente({ ...novoCliente, bairro: e.target.value })}
-                            placeholder="Centro"
+                            placeholder="Bairro"
                           />
                         </div>
                       </div>
@@ -324,7 +324,7 @@ export function SelecionarClientePDV({
                         <Input
                           value={novoCliente.complemento}
                           onChange={(e) => setNovoCliente({ ...novoCliente, complemento: e.target.value })}
-                          placeholder="Apto, Bloco..."
+                          placeholder="Complemento"
                         />
                       </div>
 
