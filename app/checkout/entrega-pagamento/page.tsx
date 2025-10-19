@@ -45,6 +45,30 @@ export default function EntregaPagamentoPage() {
   const [observacoes, setObservacoes] = useState("")
   const [trocoPara, setTrocoPara] = useState("")
   
+  // Função para formatar valor como moeda brasileira
+  const formatarMoeda = (valor: string) => {
+    // Remove tudo que não é número
+    const apenasNumeros = valor.replace(/\D/g, "")
+    
+    // Se não tem números, retorna vazio
+    if (!apenasNumeros) return ""
+    
+    // Converte para número e divide por 100 para ter os centavos
+    const numero = parseInt(apenasNumeros) / 100
+    
+    // Formata como moeda brasileira
+    return numero.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL"
+    })
+  }
+  
+  // Handler para o campo de troco
+  const handleTrocoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const valorFormatado = formatarMoeda(e.target.value)
+    setTrocoPara(valorFormatado)
+  }
+  
   // Carregar dados
   useEffect(() => {
     const loadData = async () => {
@@ -118,7 +142,7 @@ export default function EntregaPagamentoPage() {
       taxa_entrega: deliveryFee,
       total,
       observacoes: observacoes || null,
-      troco_para: formaPagamento === "dinheiro" && trocoPara ? parseFloat(trocoPara) : null
+      troco_para: formaPagamento === "dinheiro" && trocoPara ? parseFloat(trocoPara.replace(/[^0-9,]/g, "").replace(",", ".")) : null
     }
   }
   
@@ -179,8 +203,8 @@ export default function EntregaPagamentoPage() {
       }
       
       if (formaPagamento === "dinheiro" && trocoPara) {
-        const trocoValor = parseFloat(trocoPara)
-        if (trocoValor < total) {
+        const trocoValor = parseFloat(trocoPara.replace(/[^0-9,]/g, "").replace(",", "."))
+        if (isNaN(trocoValor) || trocoValor < total) {
           toast.error("O valor do troco deve ser maior que o total do pedido")
           return
         }
@@ -371,7 +395,7 @@ export default function EntregaPagamentoPage() {
               }}
               className={`p-4 rounded-lg border-2 transition-all ${
                 tipoPagamento === "app"
-                  ? "border-red-600 bg-red-50"
+                  ? "border-green-600 bg-green-50"
                   : "border-gray-200 bg-white"
               }`}
             >
@@ -384,7 +408,7 @@ export default function EntregaPagamentoPage() {
               }}
               className={`p-4 rounded-lg border-2 transition-all ${
                 tipoPagamento === "entrega"
-                  ? "border-red-600 bg-red-50"
+                  ? "border-blue-600 bg-blue-50"
                   : "border-gray-200 bg-white"
               }`}
             >
@@ -401,11 +425,11 @@ export default function EntregaPagamentoPage() {
                   onClick={() => setFormaPagamento("pix")}
                   className={`w-full p-4 rounded-lg border-2 flex items-center gap-3 transition-all ${
                     formaPagamento === "pix"
-                      ? "border-red-600 bg-red-50"
+                      ? "border-green-600 bg-green-50"
                       : "border-gray-200 bg-white"
                   }`}
                 >
-                  <Smartphone className="w-6 h-6 text-red-600" />
+                  <Smartphone className="w-6 h-6 text-green-600" />
                   <span className="font-medium">Pix</span>
                 </button>
                 
@@ -414,7 +438,7 @@ export default function EntregaPagamentoPage() {
                   onClick={() => setFormaPagamento("mercado_pago")}
                   className={`w-full p-4 rounded-lg border-2 flex items-center gap-3 transition-all opacity-50 cursor-not-allowed ${
                     formaPagamento === "mercado_pago"
-                      ? "border-red-600 bg-red-50"
+                      ? "border-green-600 bg-green-50"
                       : "border-gray-200 bg-white"
                   }`}
                   disabled
@@ -435,11 +459,11 @@ export default function EntregaPagamentoPage() {
                   onClick={() => setFormaPagamento("dinheiro")}
                   className={`w-full p-4 rounded-lg border-2 flex items-center gap-3 transition-all ${
                     formaPagamento === "dinheiro"
-                      ? "border-red-600 bg-red-50"
+                      ? "border-blue-600 bg-blue-50"
                       : "border-gray-200 bg-white"
                   }`}
                 >
-                  <Banknote className="w-6 h-6 text-green-600" />
+                  <Banknote className="w-6 h-6 text-blue-600" />
                   <span className="font-medium">Dinheiro</span>
                 </button>
                 
@@ -447,10 +471,10 @@ export default function EntregaPagamentoPage() {
                 {formaPagamento === "dinheiro" && (
                   <div className="ml-9">
                     <Input
-                      type="number"
+                      type="text"
                       placeholder="Troco para quanto? (opcional)"
                       value={trocoPara}
-                      onChange={(e) => setTrocoPara(e.target.value)}
+                      onChange={handleTrocoChange}
                       className="w-full"
                     />
                   </div>
@@ -461,7 +485,7 @@ export default function EntregaPagamentoPage() {
                   onClick={() => setFormaPagamento("cartao_debito")}
                   className={`w-full p-4 rounded-lg border-2 flex items-center gap-3 transition-all ${
                     formaPagamento === "cartao_debito"
-                      ? "border-red-600 bg-red-50"
+                      ? "border-blue-600 bg-blue-50"
                       : "border-gray-200 bg-white"
                   }`}
                 >
@@ -474,7 +498,7 @@ export default function EntregaPagamentoPage() {
                   onClick={() => setFormaPagamento("cartao_credito")}
                   className={`w-full p-4 rounded-lg border-2 flex items-center gap-3 transition-all ${
                     formaPagamento === "cartao_credito"
-                      ? "border-red-600 bg-red-50"
+                      ? "border-blue-600 bg-blue-50"
                       : "border-gray-200 bg-white"
                   }`}
                 >
