@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -19,7 +19,7 @@ import {
   ArrowLeft,
   Home
 } from "lucide-react"
-import { getCliente, updateCliente, updatePassword, type Cliente } from "@/lib/auth"
+import { getCliente, updateCliente, updatePassword, buscarCEP, type Cliente } from "@/lib/auth"
 import { toast } from "sonner"
 
 export default function PerfilPage() {
@@ -40,6 +40,10 @@ export default function PerfilPage() {
   const [cep, setCep] = useState("")
   const [complemento, setComplemento] = useState("")
   const [referencia, setReferencia] = useState("")
+  const [buscandoCep, setBuscandoCep] = useState(false)
+  
+  // Ref para debounce do CEP
+  const cepDebounceRef = useRef<NodeJS.Timeout | undefined>(undefined)
 
   // Senha
   const [novaSenha, setNovaSenha] = useState("")
@@ -94,8 +98,53 @@ export default function PerfilPage() {
     return numbers.replace(/(\d{5})(\d{0,3})/, "$1-$2")
   }
 
-  const handleCepChange = (value: string) => {
-    setCep(formatCep(value))
+  const handleCepChange = async (value: string) => {
+    // Limpar debounce anterior
+    if (cepDebounceRef.current) {
+      clearTimeout(cepDebounceRef.current)
+    }
+    
+    // Formatar e atualizar CEP
+    const cepFormatado = formatCep(value)
+    setCep(cepFormatado)
+    
+    // Verificar se CEP está completo (8 dígitos)
+    const cepLimpo = cepFormatado.replace(/\D/g, "")
+    
+    if (cepLimpo.length === 8) {
+      // Debounce de 500ms antes de buscar
+      cepDebounceRef.current = setTimeout(async () => {
+        setBuscandoCep(true)
+        
+        console.log('🔍 Buscando CEP:', cepLimpo)
+        
+        const { data, error } = await buscarCEP(cepLimpo)
+        
+        if (error) {
+          toast.error(error)
+          setBuscandoCep(false)
+          return
+        }
+        
+        if (data) {
+          console.log('✅ CEP encontrado:', data)
+          // Preencher campos automaticamente
+          setEndereco(data.logradouro || "")
+          setBairro(data.bairro || "")
+          
+          // Mostrar toast de sucesso
+          toast.success("Endereço encontrado!")
+        }
+        
+        setBuscandoCep(false)
+      }, 500)
+    } else {
+      // Limpar campos se CEP incompleto
+      if (cepLimpo.length === 0) {
+        setEndereco("")
+        setBairro("")
+      }
+    }
   }
 
   const handleSaveDadosPessoais = async () => {
@@ -304,13 +353,22 @@ export default function PerfilPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="cep">CEP</Label>
-                    <Input
-                      id="cep"
-                      value={cep}
-                      onChange={(e) => handleCepChange(e.target.value)}
-                      placeholder="12345-678"
-                      maxLength={9}
-                    />
+                    <div className="relative">
+                      <Input
+                        id="cep"
+                        value={cep}
+                        onChange={(e) => handleCepChange(e.target.value)}
+                        placeholder="12345-678"
+                        maxLength={9}
+                        disabled={buscandoCep}
+                      />
+                      {buscandoCep && (
+                        <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-gray-400" />
+                      )}
+                    </div>
+                    {buscandoCep && (
+                      <p className="text-xs text-gray-500">Buscando endereço...</p>
+                    )}
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
