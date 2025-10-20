@@ -128,7 +128,12 @@ export function PedidoCard({ pedido, onDetalhes, onAceitar, onCancelar, onImprim
           {pedido.endereco_entrega && (
             <div className="flex items-start gap-2 text-sm text-gray-600">
               <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0 mt-0.5" />
-              <span className="line-clamp-2">{pedido.endereco_entrega}</span>
+              <span className="line-clamp-3">
+                {pedido.endereco_entrega}
+                {pedido.endereco_bairro && (
+                  <span className="font-bold">, {pedido.endereco_bairro}</span>
+                )}
+              </span>
             </div>
           )}
         </div>
@@ -144,22 +149,39 @@ export function PedidoCard({ pedido, onDetalhes, onAceitar, onCancelar, onImprim
           <div className="border-t border-gray-100 pt-2.5">
             <div className="flex items-center gap-2 mb-1.5">
               <Package className="h-4 w-4 text-gray-400" />
-              <span className="text-xs font-bold text-gray-700 uppercase">
+              <span className="text-sm font-bold text-gray-700 uppercase">
                 {pedido.total_itens} {pedido.total_itens === 1 ? 'item' : 'itens'}
               </span>
             </div>
             <div className="space-y-1">
               {pedido.itens_resumo.slice(0, 2).map((item, index) => (
-                <div key={index} className="text-xs text-gray-700 flex items-center gap-1.5">
+                <div key={index} className="text-sm text-gray-700 flex items-center gap-1.5">
                   <span className="font-bold text-gray-900">{item.quantidade}x</span>
-                  <span className="font-medium">{item.nome}</span>
+                  <span className="font-medium">
+                    {(() => {
+                      // Verificar se é pizza meio a meio (múltiplos sabores)
+                      if (item.sabores && Array.isArray(item.sabores) && item.sabores.length > 1) {
+                        return (
+                          <span>
+                            {item.sabores.map((sabor, idx) => (
+                              <span key={idx}>
+                                {idx > 0 && <span className="text-gray-400"> + </span>}
+                                1/{item.sabores.length} {sabor}
+                              </span>
+                            ))}
+                          </span>
+                        )
+                      }
+                      return item.nome
+                    })()}
+                  </span>
                   {item.tamanho && (
                     <span className="text-gray-500">({item.tamanho})</span>
                   )}
                 </div>
               ))}
               {pedido.itens_resumo.length > 2 && (
-                <p className="text-xs text-gray-500 font-medium">
+                <p className="text-sm text-gray-500 font-medium">
                   +{pedido.itens_resumo.length - 2} item(s) a mais
                 </p>
               )}
@@ -170,7 +192,7 @@ export function PedidoCard({ pedido, onDetalhes, onAceitar, onCancelar, onImprim
         {/* Observações */}
         {pedido.observacoes && (
           <div className="border-t border-gray-100 pt-2.5">
-            <p className="text-xs text-gray-600 italic line-clamp-2 bg-gray-50 p-2 rounded">
+            <p className="text-sm text-gray-600 italic line-clamp-2 bg-gray-50 p-2 rounded">
               💬 {pedido.observacoes}
             </p>
           </div>

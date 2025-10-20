@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -23,11 +23,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { 
-  User, 
-  Phone, 
-  MapPin, 
-  Clock, 
+import {
+  User,
+  Phone,
+  MapPin,
+  Clock,
   Package,
   CreditCard,
   MessageSquare,
@@ -35,14 +35,27 @@ import {
   Loader2,
   Check,
   X,
-  Printer
+  Printer,
+  ShoppingCart
 } from 'lucide-react'
 import type { Pedido, StatusPedido, ItemPedido, HistoricoPedido } from '@/types/pedido'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { formatDistanceToNow, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { PedidoStatusActions } from './pedido-status-actions'
+import { createLogger } from '@/lib/utils/logger'
+import {
+  validateBordaRecheada,
+  validateAdicionais,
+  validateSabores,
+  escapeHtml,
+  formatAdicionaisDisplay,
+  formatSaboresDisplay,
+  getProximoStatus,
+  isTransicaoPermitida
+} from '@/lib/validators/pedido-validators'
+
+const logger = createLogger('PedidoDetalhesModal')
 
 interface PedidoDetalhesModalProps {
   pedido: Pedido | null
@@ -51,11 +64,11 @@ interface PedidoDetalhesModalProps {
   onStatusChange?: () => void
 }
 
-export function PedidoDetalhesModal({ 
-  pedido, 
-  open, 
+export function PedidoDetalhesModal({
+  pedido,
+  open,
   onClose,
-  onStatusChange 
+  onStatusChange
 }: PedidoDetalhesModalProps) {
   const [itens, setItens] = useState<ItemPedido[]>([])
   const [historico, setHistorico] = useState<HistoricoPedido[]>([])
@@ -64,52 +77,154 @@ export function PedidoDetalhesModal({
   const [showCancelDialog, setShowCancelDialog] = useState(false)
   const [motivoCancelamento, setMotivoCancelamento] = useState('')
   const [cancelando, setCancelando] = useState(false)
+  const [atualizandoStatus, setAtualizandoStatus] = useState(false)
 
   useEffect(() => {
-    if (pedido && open) {
-      carregarItens()
-      carregarHistorico()
+    if (!pedido?.id || !open) {
+      return
     }
-  }, [pedido, open])
 
-  const carregarItens = async () => {
+    logger.info('Modal aberto', { pedidoId: pedido.id, numeroPedido: pedido.numero_pedido })
+    
+    let cancelled = false
+
+    const carregarDados = async () => {
+      if (cancelled) return
+      
+      await Promise.all([
+        carregarItens(),
+        carregarHistorico()
+      ])
+    }
+
+    carregarDados()
+
+    return () => {
+      cancelled = true
+      logger.debug('Modal fechado, cancelando requisições')
+    }
+  }, [pedido?.id, open])
+
+  const carregarItens = useCallback(async () => {
     if (!pedido) return
 
     setLoadingItens(true)
+    
     try {
-      const { data, error } = await supabase
-        .from('pedido_itens')
-        .select('*')
-        .eq('pedido_id', pedido.id)
-        .order('created_at', { ascending: true })
+      const result = await logger.measureTime(
+        `Carregar itens do pedido ${pedido?.numero_pedido}`,
+        async () => {
+          const { data, error } = await supabase
+            .from('pedido_itens')
+            .select('*')
+            .eq('pedido_id', pedido!.id)
+            .order('created_at', { ascending: true })
 
-      if (error) throw error
-      setItens(data || [])
+          if (error) throw error
+          return data || []
+        }
+      )
+
+      logger.info(`${result.length} itens carregados`)
+      setItens(result)
     } catch (error) {
-      console.error('Erro ao carregar itens:', error)
+      logger.error('Erro ao carregar itens', error)
       toast.error('Erro ao carregar itens do pedido')
+      setItens([])
     } finally {
       setLoadingItens(false)
     }
-  }
+  }, [pedido?.id, pedido?.numero_pedido])
 
-  const carregarHistorico = async () => {
+  const carregarHistorico = useCallback(async () => {
     if (!pedido) return
 
     setLoadingHistorico(true)
+    
     try {
-      const { data, error } = await supabase
-        .from('pedido_historico')
-        .select('*')
-        .eq('pedido_id', pedido.id)
-        .order('created_at', { ascending: false })
+      const result = await logger.measureTime(
+        `Carregar histórico do pedido ${pedido?.numero_pedido}`,
+        async () => {
+          const { data, error } = await supabase
+            .from('pedido_historico')
+            .select('*')
+            .eq('pedido_id', pedido!.id)
+            .order('created_at', { ascending: false })
 
-      if (error) throw error
-      setHistorico(data || [])
+          if (error) throw error
+          return data || []
+        }
+      )
+
+      logger.info(`${result.length} registros de histórico carregados`)
+      setHistorico(result)
     } catch (error) {
-      console.error('Erro ao carregar histórico:', error)
+      logger.warn('Erro ao carregar histórico (não crítico)', error)
+      setHistorico([])
     } finally {
       setLoadingHistorico(false)
+    }
+  }, [pedido?.id, pedido?.numero_pedido])
+
+  const atualizarStatusPedido = async (novoStatus: StatusPedido, observacao?: string) => {
+    if (!pedido) {
+      logger.warn('Tentativa de atualizar status sem pedido')
+      return false
+    }
+
+    // Validar transição
+    if (!isTransicaoPermitida(pedido.status, novoStatus)) {
+      logger.warn('Transição de status não permitida', {
+        statusAtual: pedido.status,
+        statusNovo: novoStatus
+      })
+      toast.error(`Não é possível mudar de "${pedido.status}" para "${novoStatus}"`)
+      return false
+    }
+
+    logger.info('Atualizando status do pedido', {
+      pedidoId: pedido.id,
+      statusAtual: pedido.status,
+      statusNovo: novoStatus
+    })
+
+    try {
+      // Atualizar status
+      const { error: updateError } = await supabase
+        .from('pedidos')
+        .update({
+          status: novoStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', pedido.id)
+
+      if (updateError) throw updateError
+
+      // Criar histórico
+      const { error: historyError } = await supabase
+        .from('pedido_historico')
+        .insert({
+          pedido_id: pedido.id,
+          status_anterior: pedido.status,
+          status_novo: novoStatus,
+          observacao: observacao || `Status alterado para ${novoStatus}`,
+          alterado_por: 'admin'
+        })
+
+      if (historyError) {
+        logger.error('Erro ao criar histórico (não crítico)', historyError)
+        toast.warning('Status atualizado, mas histórico não foi registrado')
+      }
+
+      logger.info('Status atualizado com sucesso')
+      toast.success(`Pedido movido para "${novoStatus}"`)
+      onStatusChange?.()
+      onClose()
+      return true
+    } catch (error) {
+      logger.error('Erro ao atualizar status', error)
+      toast.error('Erro ao atualizar pedido')
+      return false
     }
   }
 
@@ -119,29 +234,118 @@ export function PedidoDetalhesModal({
       return
     }
 
+    logger.info('Cancelando pedido', { pedidoId: pedido.id, motivo: motivoCancelamento })
     setCancelando(true)
+    
     try {
-      const { error } = await supabase
-        .from('pedidos')
-        .update({
-          status: 'cancelado',
-          motivo_cancelamento: motivoCancelamento,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', pedido.id)
+      const sucesso = await atualizarStatusPedido('cancelado', `Cancelado: ${motivoCancelamento}`)
+      if (sucesso) {
+        // Atualizar motivo de cancelamento
+        const { error } = await supabase
+          .from('pedidos')
+          .update({ motivo_cancelamento: motivoCancelamento })
+          .eq('id', pedido.id)
 
-      if (error) throw error
+        if (error) {
+          logger.error('Erro ao salvar motivo de cancelamento', error)
+        }
 
-      toast.success('Pedido cancelado com sucesso')
-      setShowCancelDialog(false)
-      setMotivoCancelamento('')
-      onStatusChange?.()
-      onClose()
+        setShowCancelDialog(false)
+        setMotivoCancelamento('')
+      }
     } catch (error) {
-      console.error('Erro ao cancelar pedido:', error)
+      logger.error('Erro ao cancelar pedido', error)
       toast.error('Erro ao cancelar pedido')
     } finally {
       setCancelando(false)
+    }
+  }
+
+  const handleAceitar = async () => {
+    setAtualizandoStatus(true)
+    try {
+      await atualizarStatusPedido('em_preparo', 'Pedido aceito e iniciado')
+    } finally {
+      setAtualizandoStatus(false)
+    }
+  }
+
+  const handleConfirmar = async () => {
+    if (!pedido) return
+    
+    const proximoStatus = getProximoStatus(pedido.status)
+    
+    if (!proximoStatus) {
+      toast.error('Não é possível avançar este pedido')
+      return
+    }
+
+    setAtualizandoStatus(true)
+    try {
+      await atualizarStatusPedido(proximoStatus)
+    } finally {
+      setAtualizandoStatus(false)
+    }
+  }
+
+  const handleImprimir = () => {
+    if (!pedido) {
+      logger.warn('Tentativa de imprimir sem pedido')
+      return
+    }
+
+    logger.info('Imprimindo pedido', { pedidoId: pedido.id })
+    
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Pedido ${escapeHtml(pedido.numero_pedido)}</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+              h1 { font-size: 24px; margin-bottom: 10px; text-align: center; }
+              .info { margin: 10px 0; padding: 5px 0; border-bottom: 1px solid #eee; }
+              .items { margin-top: 20px; }
+              .item { margin: 8px 0; padding: 5px; background: #f9f9f9; }
+              .total { font-size: 20px; font-weight: bold; margin-top: 20px; text-align: center; }
+              .header { background: #f0f0f0; padding: 10px; margin-bottom: 20px; text-align: center; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>Pedido ${escapeHtml(pedido.numero_pedido)}</h1>
+              <p>Status: ${escapeHtml(pedido.status)}</p>
+              <p>Data: ${pedido.created_at ? format(new Date(pedido.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : 'Data não disponível'}</p>
+            </div>
+
+            <div class="info"><strong>Cliente:</strong> ${escapeHtml(pedido.nome_cliente || 'N/A')}</div>
+            <div class="info"><strong>Telefone:</strong> ${escapeHtml(pedido.telefone_cliente || 'N/A')}</div>
+            <div class="info"><strong>Endereço:</strong> ${escapeHtml(pedido.endereco_entrega || 'Retirada no balcão')}</div>
+            <div class="info"><strong>Pagamento:</strong> ${escapeHtml(pedido.forma_pagamento)}</div>
+
+            <div class="items">
+              <h2>Itens:</h2>
+              ${itens.map(item => `
+                <div class="item">
+                  <strong>${escapeHtml(String(item.quantidade))}x ${escapeHtml(item.nome_produto)}</strong>
+                  ${item.tamanho ? `<br>Tamanho: ${escapeHtml(item.tamanho)}` : ''}
+                  ${validateSabores(item.sabores) ? `<br>Sabores: ${escapeHtml(item.sabores.join(', '))}` : ''}
+                  ${item.observacoes ? `<br><em>Obs: ${escapeHtml(item.observacoes)}</em>` : ''}
+                </div>
+              `).join('')}
+            </div>
+
+            ${pedido.observacoes ? `<div class="info"><strong>Observações Gerais:</strong> ${escapeHtml(pedido.observacoes)}</div>` : ''}
+
+            <div class="total">
+              Total: R$ ${pedido?.total.toFixed(2)}
+            </div>
+            <script>window.print(); window.close();</script>
+          </body>
+        </html>
+      `)
+      printWindow.document.close()
     }
   }
 
@@ -169,16 +373,19 @@ export function PedidoDetalhesModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-3xl max-h-[90vh]">
+        <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
-              <span>Pedido {pedido.numero_pedido}</span>
+              <span className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5" />
+                Pedido {pedido.numero_pedido}
+              </span>
               {getStatusBadge(pedido.status)}
             </DialogTitle>
             <DialogDescription>
-              Criado {formatDistanceToNow(new Date(pedido.created_at), { 
-                addSuffix: true, 
-                locale: ptBR 
+              Criado {formatDistanceToNow(new Date(pedido.created_at), {
+                addSuffix: true,
+                locale: ptBR
               })}
             </DialogDescription>
           </DialogHeader>
@@ -186,40 +393,47 @@ export function PedidoDetalhesModal({
           <ScrollArea className="max-h-[calc(90vh-200px)]">
             <div className="space-y-6 pr-4">
               {/* Informações do Cliente */}
-              <div>
+              <div className="bg-white p-4 rounded-lg border">
                 <h3 className="font-semibold mb-3 flex items-center gap-2">
                   <User className="h-4 w-4" />
                   Informações do Cliente
                 </h3>
-                <div className="space-y-2 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   {pedido.nome_cliente && (
-                    <p><strong>Nome:</strong> {pedido.nome_cliente}</p>
+                    <div>
+                      <span className="font-medium text-gray-600">Nome:</span>
+                      <p className="font-semibold">{pedido.nome_cliente}</p>
+                    </div>
                   )}
                   {pedido.telefone_cliente && (
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-gray-500" />
-                      <span>{pedido.telefone_cliente}</span>
+                      <span className="font-medium">{pedido.telefone_cliente}</span>
                     </div>
                   )}
                   {pedido.endereco_entrega && (
-                    <div className="flex items-start gap-2">
+                    <div className="md:col-span-2 flex items-start gap-2">
                       <MapPin className="h-4 w-4 text-gray-500 mt-0.5" />
-                      <span>{pedido.endereco_entrega}</span>
+                      <span>
+                        {pedido.endereco_entrega}
+                        {pedido.endereco_bairro && (
+                          <span className="font-bold">, {pedido.endereco_bairro}</span>
+                        )}
+                      </span>
                     </div>
                   )}
                 </div>
               </div>
 
-              <Separator />
-
               {/* Itens do Pedido */}
-              <div>
-                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+              <div className="bg-white p-4 rounded-lg border">
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
                   <Package className="h-5 w-5" />
-                  Itens do Pedido
+                  Itens do Pedido ({itens.length})
                 </h3>
+
                 {loadingItens ? (
-                  <div className="flex justify-center py-4">
+                  <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
                 ) : itens.length === 0 ? (
@@ -228,28 +442,45 @@ export function PedidoDetalhesModal({
                     <p>Nenhum item encontrado</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {itens.map(item => (
-                      <div key={item.id} className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200 shadow-sm">
+                  <div className="space-y-4">
+                    {itens.map((item, index) => (
+                      <div key={item.id} className="p-4 bg-gray-50 rounded-lg border">
                         <div className="flex justify-between items-start gap-4">
                           <div className="flex-1">
-                            {/* Nome do produto em destaque */}
-                            <p className="text-lg font-bold text-gray-900 mb-2">
-                              <span className="inline-block bg-red-600 text-white px-2 py-1 rounded text-sm mr-2">
+                            {/* Nome e quantidade */}
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="bg-red-600 text-white px-2 py-1 rounded text-sm font-bold">
                                 {item.quantidade}x
                               </span>
-                              {item.nome_produto}
-                            </p>
-                            
+                              <h4 className="text-lg font-bold text-gray-900">
+                                {(() => {
+                                  // Verificar se é pizza meio a meio (múltiplos sabores)
+                                  if (validateSabores(item.sabores) && item.sabores.length > 1) {
+                                    return (
+                                      <span>
+                                        {item.sabores.map((sabor, idx) => (
+                                          <span key={idx}>
+                                            {idx > 0 && <span className="text-gray-400"> + </span>}
+                                            1/{item.sabores.length} {sabor}
+                                          </span>
+                                        ))}
+                                      </span>
+                                    )
+                                  }
+                                  return item.nome_produto
+                                })()}
+                              </h4>
+                            </div>
+
                             {/* Tamanho */}
                             {item.tamanho && (
-                              <p className="text-base text-gray-700 mb-1">
+                              <p className="text-sm text-gray-700 mb-2">
                                 <strong>Tamanho:</strong> <span className="capitalize">{item.tamanho}</span>
                               </p>
                             )}
-                            
-                            {/* Sabores */}
-                            {item.sabores && Array.isArray(item.sabores) && item.sabores.length > 0 && (
+
+                            {/* Sabores (se for meio a meio) */}
+                            {validateSabores(item.sabores) && item.sabores.length > 1 && (
                               <div className="mb-2">
                                 <p className="text-sm font-semibold text-gray-700 mb-1">Sabores:</p>
                                 <div className="flex flex-wrap gap-1">
@@ -261,26 +492,33 @@ export function PedidoDetalhesModal({
                                 </div>
                               </div>
                             )}
-                            
+
                             {/* Adicionais */}
-                            {item.adicionais && Array.isArray(item.adicionais) && item.adicionais.length > 0 && (
+                            {validateAdicionais(item.adicionais) && (
                               <div className="mb-2">
                                 <p className="text-sm font-semibold text-gray-700 mb-1">Adicionais:</p>
-                                {item.adicionais.map((adicional: any, idx: number) => (
-                                  <div key={idx} className="ml-2 text-sm text-gray-600">
-                                    <strong>{adicional.sabor}:</strong> {adicional.itens?.map((i: any) => i.nome).join(', ')}
-                                  </div>
-                                ))}
+                                {item.adicionais.map((adicional, idx) => {
+                                  const sabor = adicional.sabor || 'Geral'
+                                  const itens = adicional.itens.map(i => i.nome).join(', ')
+                                  
+                                  if (!itens) return null
+                                  
+                                  return (
+                                    <div key={idx} className="ml-2 text-sm text-gray-600">
+                                      <strong>{sabor}:</strong> {itens}
+                                    </div>
+                                  )
+                                })}
                               </div>
                             )}
-                            
+
                             {/* Borda Recheada */}
-                            {item.borda_recheada && (
-                              <p className="text-sm text-gray-700 mb-1">
+                            {validateBordaRecheada(item.borda_recheada) && (
+                              <p className="text-sm text-gray-700 mb-2">
                                 <strong>Borda:</strong> <span className="text-orange-600">{item.borda_recheada.nome}</span>
                               </p>
                             )}
-                            
+
                             {/* Observações */}
                             {item.observacoes && (
                               <div className="mt-2 p-2 bg-yellow-50 border-l-4 border-yellow-400 rounded">
@@ -290,7 +528,7 @@ export function PedidoDetalhesModal({
                               </div>
                             )}
                           </div>
-                          
+
                           {/* Preços */}
                           <div className="text-right flex-shrink-0">
                             <p className="text-xl font-bold text-green-600">{formatCurrency(item.preco_total)}</p>
@@ -305,10 +543,8 @@ export function PedidoDetalhesModal({
                 )}
               </div>
 
-              <Separator />
-
               {/* Resumo Financeiro */}
-              <div>
+              <div className="bg-white p-4 rounded-lg border">
                 <h3 className="font-semibold mb-3 flex items-center gap-2">
                   <CreditCard className="h-4 w-4" />
                   Resumo Financeiro
@@ -323,80 +559,71 @@ export function PedidoDetalhesModal({
                     <span>{formatCurrency(pedido.taxa_entrega)}</span>
                   </div>
                   <Separator />
-                  <div className="flex justify-between font-bold text-base">
+                  <div className="flex justify-between font-bold text-lg">
                     <span>Total:</span>
                     <span className="text-green-600">{formatCurrency(pedido.total)}</span>
                   </div>
                   <div className="flex justify-between text-gray-600">
                     <span>Forma de Pagamento:</span>
-                    <span className="capitalize">{pedido.forma_pagamento}</span>
+                    <span className="capitalize font-medium">{pedido.forma_pagamento}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Observações */}
+              {/* Observações Gerais */}
               {pedido.observacoes && (
-                <>
-                  <Separator />
-                  <div>
-                    <h3 className="font-semibold mb-3 flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4" />
-                      Observações
-                    </h3>
-                    <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded">
-                      {pedido.observacoes}
-                    </p>
-                  </div>
-                </>
+                <div className="bg-white p-4 rounded-lg border">
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    Observações Gerais
+                  </h3>
+                  <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded">
+                    {pedido.observacoes}
+                  </p>
+                </div>
               )}
 
               {/* Motivo de Cancelamento */}
               {pedido.status === 'cancelado' && pedido.motivo_cancelamento && (
-                <>
-                  <Separator />
-                  <div>
-                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-red-600">
-                      <XCircle className="h-4 w-4" />
-                      Motivo do Cancelamento
-                    </h3>
-                    <p className="text-sm text-gray-600 bg-red-50 p-3 rounded border border-red-200">
-                      {pedido.motivo_cancelamento}
-                    </p>
-                  </div>
-                </>
+                <div className="bg-white p-4 rounded-lg border border-red-200">
+                  <h3 className="font-semibold mb-3 flex items-center gap-2 text-red-600">
+                    <XCircle className="h-4 w-4" />
+                    Motivo do Cancelamento
+                  </h3>
+                  <p className="text-sm text-gray-600 bg-red-50 p-3 rounded">
+                    {pedido.motivo_cancelamento}
+                  </p>
+                </div>
               )}
 
-              {/* Histórico */}
+              {/* Histórico de Status */}
               {historico.length > 0 && (
-                <>
-                  <Separator />
-                  <div>
-                    <h3 className="font-semibold mb-3 flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      Histórico de Status
-                    </h3>
-                    <div className="space-y-2">
-                      {historico.map(h => (
-                        <div key={h.id} className="text-sm p-2 bg-gray-50 rounded">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-medium">
-                                {h.status_anterior ? `${h.status_anterior} → ` : ''}
-                                <span className="text-blue-600">{h.status_novo}</span>
-                              </p>
-                              {h.observacao && (
-                                <p className="text-gray-600 text-xs mt-1">{h.observacao}</p>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-500">
-                              {format(new Date(h.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                <div className="bg-white p-4 rounded-lg border">
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Histórico de Status
+                  </h3>
+                  <div className="space-y-2">
+                    {historico.map(h => (
+                      <div key={h.id} className="text-sm p-3 bg-gray-50 rounded">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium">
+                              {h.status_anterior ? `${h.status_anterior} → ` : ''}
+                              <span className="text-blue-600">{h.status_novo}</span>
                             </p>
+                            {h.observacao && (
+                              <p className="text-gray-600 text-xs mt-1">{h.observacao}</p>
+                            )}
                           </div>
+                          <p className="text-xs text-gray-500">
+                            {format(new Date(h.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          </p>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                </>
+                </div>
               )}
             </div>
           </ScrollArea>
@@ -409,27 +636,16 @@ export function PedidoDetalhesModal({
                 <Button
                   variant="default"
                   size="sm"
-                  onClick={async () => {
-                    const { error } = await supabase
-                      .from('pedidos')
-                      .update({ status: 'em_preparo', updated_at: new Date().toISOString() })
-                      .eq('id', pedido.id)
-                    
-                    if (!error) {
-                      toast.success('Pedido aceito e movido para "Em Preparo"')
-                      onStatusChange?.()
-                      onClose()
-                    } else {
-                      toast.error('Erro ao aceitar pedido')
-                    }
-                  }}
+                  onClick={handleAceitar}
+                  disabled={atualizandoStatus}
                   className="bg-green-600 hover:bg-green-700 text-white font-semibold"
                 >
-                  <Check className="h-4 w-4 mr-1.5" />
+                  {atualizandoStatus && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+                  {!atualizandoStatus && <Check className="h-4 w-4 mr-1.5" />}
                   Aceitar
                 </Button>
               )}
-              
+
               {/* Cancelar - apenas para não finalizados/cancelados */}
               {pedido.status !== 'cancelado' && pedido.status !== 'finalizado' && (
                 <Button
@@ -442,77 +658,29 @@ export function PedidoDetalhesModal({
                   Cancelar
                 </Button>
               )}
-              
+
               {/* Imprimir */}
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  const printWindow = window.open('', '_blank')
-                  if (printWindow) {
-                    printWindow.document.write(`
-                      <html>
-                        <head>
-                          <title>Pedido ${pedido.numero_pedido}</title>
-                          <style>
-                            body { font-family: Arial, sans-serif; padding: 20px; }
-                            h1 { font-size: 24px; margin-bottom: 10px; }
-                            .info { margin: 10px 0; }
-                            .items { margin-top: 20px; }
-                            .item { margin: 5px 0; }
-                            .total { font-size: 20px; font-weight: bold; margin-top: 20px; }
-                          </style>
-                        </head>
-                        <body>
-                          <h1>Pedido ${pedido.numero_pedido}</h1>
-                          <div class="info"><strong>Cliente:</strong> ${pedido.nome_cliente || 'N/A'}</div>
-                          <div class="info"><strong>Telefone:</strong> ${pedido.telefone_cliente || 'N/A'}</div>
-                          <div class="info"><strong>Endereço:</strong> ${pedido.endereco_entrega || 'Retirada no balcão'}</div>
-                          <div class="info"><strong>Pagamento:</strong> ${pedido.forma_pagamento}</div>
-                          <div class="items">
-                            <h2>Itens:</h2>
-                            ${itens.map(item => `
-                              <div class="item">${item.quantidade}x ${item.nome_produto} ${item.tamanho ? `(${item.tamanho})` : ''}</div>
-                            `).join('')}
-                          </div>
-                          ${pedido.observacoes ? `<div class="info"><strong>Observações:</strong> ${pedido.observacoes}</div>` : ''}
-                          <div class="total">Total: R$ ${pedido.total.toFixed(2)}</div>
-                          <script>window.print(); window.close();</script>
-                        </body>
-                      </html>
-                    `)
-                    printWindow.document.close()
-                  }
-                }}
+                onClick={handleImprimir}
                 className="border-gray-300 hover:bg-gray-100 font-semibold"
               >
                 <Printer className="h-4 w-4 mr-1.5" />
                 Imprimir
               </Button>
-              
+
               {/* Confirmar - para outros status */}
               {pedido.status !== 'pendente' && pedido.status !== 'cancelado' && pedido.status !== 'finalizado' && (
                 <Button
                   variant="default"
                   size="sm"
-                  onClick={async () => {
-                    const proximoStatus = pedido.status === 'em_preparo' ? 'saiu_entrega' : 'finalizado'
-                    const { error } = await supabase
-                      .from('pedidos')
-                      .update({ status: proximoStatus, updated_at: new Date().toISOString() })
-                      .eq('id', pedido.id)
-                    
-                    if (!error) {
-                      toast.success(`Pedido movido para "${proximoStatus}"`)
-                      onStatusChange?.()
-                      onClose()
-                    } else {
-                      toast.error('Erro ao atualizar pedido')
-                    }
-                  }}
+                  onClick={handleConfirmar}
+                  disabled={atualizandoStatus}
                   className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
                 >
-                  <Check className="h-4 w-4 mr-1.5" />
+                  {atualizandoStatus && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+                  {!atualizandoStatus && <Check className="h-4 w-4 mr-1.5" />}
                   Confirmar
                 </Button>
               )}
