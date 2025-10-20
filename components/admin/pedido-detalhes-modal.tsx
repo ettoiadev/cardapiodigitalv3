@@ -32,7 +32,10 @@ import {
   CreditCard,
   MessageSquare,
   XCircle,
-  Loader2
+  Loader2,
+  Check,
+  X,
+  Printer
 } from 'lucide-react'
 import type { Pedido, StatusPedido, ItemPedido, HistoricoPedido } from '@/types/pedido'
 import { supabase } from '@/lib/supabase'
@@ -211,34 +214,90 @@ export function PedidoDetalhesModal({
 
               {/* Itens do Pedido */}
               <div>
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Package className="h-4 w-4" />
+                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                  <Package className="h-5 w-5" />
                   Itens do Pedido
                 </h3>
                 {loadingItens ? (
                   <div className="flex justify-center py-4">
                     <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
+                ) : itens.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>Nenhum item encontrado</p>
+                  </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {itens.map(item => (
-                      <div key={item.id} className="flex justify-between items-start p-2 bg-gray-50 rounded">
-                        <div>
-                          <p className="font-medium">
-                            {item.quantidade}x {item.nome_produto}
-                          </p>
-                          {item.tamanho && (
-                            <p className="text-sm text-gray-600">Tamanho: {item.tamanho}</p>
-                          )}
-                          {item.observacoes && (
-                            <p className="text-sm text-gray-600 italic">Obs: {item.observacoes}</p>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium">{formatCurrency(item.subtotal)}</p>
-                          <p className="text-xs text-gray-500">
-                            {formatCurrency(item.preco_unitario)} un.
-                          </p>
+                      <div key={item.id} className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200 shadow-sm">
+                        <div className="flex justify-between items-start gap-4">
+                          <div className="flex-1">
+                            {/* Nome do produto em destaque */}
+                            <p className="text-lg font-bold text-gray-900 mb-2">
+                              <span className="inline-block bg-red-600 text-white px-2 py-1 rounded text-sm mr-2">
+                                {item.quantidade}x
+                              </span>
+                              {item.nome_produto}
+                            </p>
+                            
+                            {/* Tamanho */}
+                            {item.tamanho && (
+                              <p className="text-base text-gray-700 mb-1">
+                                <strong>Tamanho:</strong> <span className="capitalize">{item.tamanho}</span>
+                              </p>
+                            )}
+                            
+                            {/* Sabores */}
+                            {item.sabores && Array.isArray(item.sabores) && item.sabores.length > 0 && (
+                              <div className="mb-2">
+                                <p className="text-sm font-semibold text-gray-700 mb-1">Sabores:</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {item.sabores.map((sabor, idx) => (
+                                    <span key={idx} className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                                      {sabor}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Adicionais */}
+                            {item.adicionais && Array.isArray(item.adicionais) && item.adicionais.length > 0 && (
+                              <div className="mb-2">
+                                <p className="text-sm font-semibold text-gray-700 mb-1">Adicionais:</p>
+                                {item.adicionais.map((adicional: any, idx: number) => (
+                                  <div key={idx} className="ml-2 text-sm text-gray-600">
+                                    <strong>{adicional.sabor}:</strong> {adicional.itens?.map((i: any) => i.nome).join(', ')}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* Borda Recheada */}
+                            {item.borda_recheada && (
+                              <p className="text-sm text-gray-700 mb-1">
+                                <strong>Borda:</strong> <span className="text-orange-600">{item.borda_recheada.nome}</span>
+                              </p>
+                            )}
+                            
+                            {/* Observações */}
+                            {item.observacoes && (
+                              <div className="mt-2 p-2 bg-yellow-50 border-l-4 border-yellow-400 rounded">
+                                <p className="text-sm text-gray-700">
+                                  <strong>💬 Obs:</strong> {item.observacoes}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Preços */}
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-xl font-bold text-green-600">{formatCurrency(item.preco_total)}</p>
+                            <p className="text-sm text-gray-500">
+                              {formatCurrency(item.preco_unitario)} un.
+                            </p>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -342,29 +401,121 @@ export function PedidoDetalhesModal({
             </div>
           </ScrollArea>
 
-          {/* Ações */}
-          <div className="flex justify-between items-center pt-4 border-t">
-            <div>
+          {/* Ações - Mesmos botões do card */}
+          <div className="pt-4 border-t">
+            <div className="grid grid-cols-2 gap-2">
+              {/* Aceitar - apenas para pendentes */}
+              {pedido.status === 'pendente' && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={async () => {
+                    const { error } = await supabase
+                      .from('pedidos')
+                      .update({ status: 'em_preparo', updated_at: new Date().toISOString() })
+                      .eq('id', pedido.id)
+                    
+                    if (!error) {
+                      toast.success('Pedido aceito e movido para "Em Preparo"')
+                      onStatusChange?.()
+                      onClose()
+                    } else {
+                      toast.error('Erro ao aceitar pedido')
+                    }
+                  }}
+                  className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+                >
+                  <Check className="h-4 w-4 mr-1.5" />
+                  Aceitar
+                </Button>
+              )}
+              
+              {/* Cancelar - apenas para não finalizados/cancelados */}
               {pedido.status !== 'cancelado' && pedido.status !== 'finalizado' && (
                 <Button
                   variant="destructive"
                   size="sm"
                   onClick={() => setShowCancelDialog(true)}
+                  className="bg-red-600 hover:bg-red-700 text-white font-semibold"
                 >
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Cancelar Pedido
+                  <X className="h-4 w-4 mr-1.5" />
+                  Cancelar
                 </Button>
               )}
-            </div>
-            <div className="flex gap-2">
-              <PedidoStatusActions
-                pedidoId={pedido.id}
-                statusAtual={pedido.status}
-                onStatusChange={() => {
-                  onStatusChange?.()
-                  carregarHistorico()
+              
+              {/* Imprimir */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const printWindow = window.open('', '_blank')
+                  if (printWindow) {
+                    printWindow.document.write(`
+                      <html>
+                        <head>
+                          <title>Pedido ${pedido.numero_pedido}</title>
+                          <style>
+                            body { font-family: Arial, sans-serif; padding: 20px; }
+                            h1 { font-size: 24px; margin-bottom: 10px; }
+                            .info { margin: 10px 0; }
+                            .items { margin-top: 20px; }
+                            .item { margin: 5px 0; }
+                            .total { font-size: 20px; font-weight: bold; margin-top: 20px; }
+                          </style>
+                        </head>
+                        <body>
+                          <h1>Pedido ${pedido.numero_pedido}</h1>
+                          <div class="info"><strong>Cliente:</strong> ${pedido.nome_cliente || 'N/A'}</div>
+                          <div class="info"><strong>Telefone:</strong> ${pedido.telefone_cliente || 'N/A'}</div>
+                          <div class="info"><strong>Endereço:</strong> ${pedido.endereco_entrega || 'Retirada no balcão'}</div>
+                          <div class="info"><strong>Pagamento:</strong> ${pedido.forma_pagamento}</div>
+                          <div class="items">
+                            <h2>Itens:</h2>
+                            ${itens.map(item => `
+                              <div class="item">${item.quantidade}x ${item.nome_produto} ${item.tamanho ? `(${item.tamanho})` : ''}</div>
+                            `).join('')}
+                          </div>
+                          ${pedido.observacoes ? `<div class="info"><strong>Observações:</strong> ${pedido.observacoes}</div>` : ''}
+                          <div class="total">Total: R$ ${pedido.total.toFixed(2)}</div>
+                          <script>window.print(); window.close();</script>
+                        </body>
+                      </html>
+                    `)
+                    printWindow.document.close()
+                  }
                 }}
-              />
+                className="border-gray-300 hover:bg-gray-100 font-semibold"
+              >
+                <Printer className="h-4 w-4 mr-1.5" />
+                Imprimir
+              </Button>
+              
+              {/* Confirmar - para outros status */}
+              {pedido.status !== 'pendente' && pedido.status !== 'cancelado' && pedido.status !== 'finalizado' && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={async () => {
+                    const proximoStatus = pedido.status === 'em_preparo' ? 'saiu_entrega' : 'finalizado'
+                    const { error } = await supabase
+                      .from('pedidos')
+                      .update({ status: proximoStatus, updated_at: new Date().toISOString() })
+                      .eq('id', pedido.id)
+                    
+                    if (!error) {
+                      toast.success(`Pedido movido para "${proximoStatus}"`)
+                      onStatusChange?.()
+                      onClose()
+                    } else {
+                      toast.error('Erro ao atualizar pedido')
+                    }
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                >
+                  <Check className="h-4 w-4 mr-1.5" />
+                  Confirmar
+                </Button>
+              )}
             </div>
           </div>
         </DialogContent>

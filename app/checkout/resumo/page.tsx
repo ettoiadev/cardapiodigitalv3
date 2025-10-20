@@ -423,11 +423,22 @@ export default function CheckoutResumoPage() {
                         </div>
                       )}
                       
-                      {/* Mostrar observações */}
+                      {/* Mostrar observações gerais */}
                       {item.observacoes && (
                         <p className="text-sm text-gray-600">
                           <span className="font-medium">Obs:</span> {item.observacoes}
                         </p>
+                      )}
+                      
+                      {/* Mostrar observações por sabor (meio-a-meio) */}
+                      {item.observacoesPorSabor && item.observacoesPorSabor.length > 0 && (
+                        <div className="text-sm text-gray-600">
+                          {item.observacoesPorSabor.map((obs, idx) => (
+                            <p key={idx}>
+                              <span className="font-medium">{obs.sabor}:</span> {obs.observacoes}
+                            </p>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -598,8 +609,19 @@ export default function CheckoutResumoPage() {
                               <h4 className="text-sm font-medium text-gray-900 mb-2">Observações</h4>
                               <Textarea
                                 placeholder="Ex: sem cebola..."
-                                value={item.observacoes || ""}
-                                onChange={(e) => handleObservacoesChange(item.id, e.target.value)}
+                                value={
+                                  item.observacoesPorSabor?.find(obs => obs.sabor === sabor)?.observacoes || ""
+                                }
+                                onChange={(e) => {
+                                  dispatch({
+                                    type: 'UPDATE_OBSERVACOES_SABOR',
+                                    payload: {
+                                      id: item.id,
+                                      sabor: sabor,
+                                      observacoes: e.target.value
+                                    }
+                                  })
+                                }}
                                 className="resize-none h-16 text-sm"
                               />
                             </div>

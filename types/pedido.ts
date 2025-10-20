@@ -30,6 +30,12 @@ export interface ItemResumoPedido {
   nome: string
   quantidade: number
   tamanho?: string
+  sabores?: any // JSONB array
+  adicionais?: any // JSONB array
+  borda_recheada?: any // JSONB object
+  observacoes?: string
+  preco_unitario?: number
+  preco_total?: number
 }
 
 /**
@@ -38,12 +44,15 @@ export interface ItemResumoPedido {
 export interface ItemPedido {
   id: string
   pedido_id: string
-  produto_id: string
+  produto_id: string | null
   nome_produto: string
   quantidade: number
   tamanho?: string
+  sabores?: any[] // JSONB array
+  adicionais?: any[] // JSONB array
+  borda_recheada?: any // JSONB object
   preco_unitario: number
-  subtotal: number
+  preco_total: number
   observacoes?: string
   created_at: string
 }
@@ -77,6 +86,15 @@ export interface Pedido {
   tipo_entrega: TipoEntrega
   endereco_entrega?: string
   
+  // Campos de endereço separados (da view atualizada)
+  endereco_rua?: string
+  endereco_numero?: string
+  endereco_bairro?: string
+  endereco_cidade?: string
+  endereco_estado?: string
+  endereco_cep?: string
+  endereco_complemento?: string
+  
   // Status e controle
   status: StatusPedido
   status_anterior?: string
@@ -87,6 +105,7 @@ export interface Pedido {
   taxa_entrega: number
   total: number
   forma_pagamento: FormaPagamento
+  troco_para?: number
   
   // Observações
   observacoes?: string

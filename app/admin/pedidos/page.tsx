@@ -229,6 +229,58 @@ export default function PedidosPage() {
     setModalAberto(true)
   }
 
+  const handleAceitar = async (pedido: Pedido) => {
+    const sucesso = await atualizarStatus(pedido.id, 'em_preparo')
+    if (sucesso) {
+      toast.success('Pedido aceito e movido para "Em Preparo"')
+    }
+  }
+
+  const handleCancelar = (pedido: Pedido) => {
+    setPedidoSelecionado(pedido)
+    setModalAberto(true)
+    // O modal de detalhes já tem opção de cancelar
+  }
+
+  const handleImprimir = (pedido: Pedido) => {
+    // Abrir janela de impressão
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Pedido ${pedido.numero_pedido}</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; }
+              h1 { font-size: 24px; margin-bottom: 10px; }
+              .info { margin: 10px 0; }
+              .items { margin-top: 20px; }
+              .item { margin: 5px 0; }
+              .total { font-size: 20px; font-weight: bold; margin-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <h1>Pedido ${pedido.numero_pedido}</h1>
+            <div class="info"><strong>Cliente:</strong> ${pedido.nome_cliente || 'N/A'}</div>
+            <div class="info"><strong>Telefone:</strong> ${pedido.telefone_cliente || 'N/A'}</div>
+            <div class="info"><strong>Endereço:</strong> ${pedido.endereco_entrega || 'Retirada no balcão'}</div>
+            <div class="info"><strong>Pagamento:</strong> ${pedido.forma_pagamento}</div>
+            <div class="items">
+              <h2>Itens:</h2>
+              ${pedido.itens_resumo?.map(item => `
+                <div class="item">${item.quantidade}x ${item.nome} ${item.tamanho ? `(${item.tamanho})` : ''}</div>
+              `).join('') || ''}
+            </div>
+            ${pedido.observacoes ? `<div class="info"><strong>Observações:</strong> ${pedido.observacoes}</div>` : ''}
+            <div class="total">Total: R$ ${pedido.total.toFixed(2)}</div>
+            <script>window.print(); window.close();</script>
+          </body>
+        </html>
+      `)
+      printWindow.document.close()
+    }
+  }
+
   const handleFecharModal = () => {
     setModalAberto(false)
     setPedidoSelecionado(null)
@@ -330,6 +382,9 @@ export default function PedidosPage() {
               coluna={coluna}
               pedidos={pedidosPorStatus[coluna.id]}
               onDetalhes={handleDetalhes}
+              onAceitar={handleAceitar}
+              onCancelar={handleCancelar}
+              onImprimir={handleImprimir}
             />
           ))}
         </div>

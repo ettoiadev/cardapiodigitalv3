@@ -395,14 +395,13 @@ export async function getSession(): Promise<AuthResponse<Session>> {
 export async function getUser(): Promise<AuthResponse<User>> {
   try {
     const { data: { user }, error } = await supabase.auth.getUser()
-    if (error) throw error
-    return { data: user, error: null }
+    return { data: user, error }
   } catch (error) {
-    logError('getUser', error)
-    return {
-      data: null,
-      error: getErrorMessage(error)
+    // Não logar erro se for apenas "session missing" (usuário não logado)
+    if (error instanceof Error && !error.message.includes('Auth session missing')) {
+      console.error('[Auth Error - getUser]:', error)
     }
+    return { data: null, error }
   }
 }
 
@@ -416,13 +415,16 @@ export async function getUser(): Promise<AuthResponse<User>> {
  * @param userId - ID do usuário (opcional, usa o usuário logado se não informado)
  * @returns Dados do cliente ou erro
  */
-export async function getCliente(userId?: string): Promise<AuthResponse<Cliente>> {
+export async function getCliente(userId?: string): Promise<{ data: any; error: any }> {
   try {
-    // Se não informou userId, pegar do usuário logado
     let targetUserId = userId
+    
     if (!targetUserId) {
       const { data: user } = await getUser()
-      if (!user) throw new Error('Usuário não autenticado')
+      if (!user) {
+        // Retornar silenciosamente sem logar erro (usuário não logado é esperado)
+        return { data: null, error: new Error('Usuário não autenticado') }
+      }
       targetUserId = user.id
     }
 
@@ -433,15 +435,13 @@ export async function getCliente(userId?: string): Promise<AuthResponse<Cliente>
       .single()
 
     if (error) throw error
-    if (!data) throw new Error('Cliente não encontrado')
-
     return { data, error: null }
   } catch (error) {
-    logError('getCliente', error)
-    return {
-      data: null,
-      error: getErrorMessage(error)
+    // Não logar erro se for apenas "não autenticado" (esperado)
+    if (error instanceof Error && !error.message.includes('não autenticado')) {
+      console.error('[Auth Error - getCliente]:', error)
     }
+    return { data: null, error }
   }
 }
 

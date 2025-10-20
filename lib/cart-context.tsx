@@ -21,7 +21,11 @@ export interface CartItem {
     nome: string
     preco: number
   }
-  observacoes?: string // Observações específicas do item (preferências, instruções)
+  observacoes?: string // Observações gerais do item
+  observacoesPorSabor?: { // Observações específicas por sabor (para meio-a-meio)
+    sabor: string
+    observacoes: string
+  }[]
 }
 
 interface CartState {
@@ -37,6 +41,7 @@ type CartAction =
   | { type: "UPDATE_BORDA"; payload: { id: string; bordaRecheada?: { id: string; nome: string; preco: number } } }
   | { type: "UPDATE_TAMANHO"; payload: { id: string; tamanho: "broto" | "tradicional"; novoPreco: number } }
   | { type: "UPDATE_OBSERVACOES"; payload: { id: string; observacoes: string } }
+  | { type: "UPDATE_OBSERVACOES_SABOR"; payload: { id: string; sabor: string; observacoes: string } }
   | { type: "CLEAR_CART" }
 
 const CartContext = createContext<{
@@ -246,19 +251,54 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
     }
 
     case "UPDATE_OBSERVACOES": {
+      const newItems = state.items.map((item) =>
+        item.id === action.payload.id
+          ? { ...item, observacoes: action.payload.observacoes }
+          : item
+      )
+
+      return {
+        ...state,
+        items: newItems,
+      }
+    }
+
+    case "UPDATE_OBSERVACOES_SABOR": {
       const newItems = state.items.map((item) => {
         if (item.id === action.payload.id) {
+          const observacoesPorSabor = item.observacoesPorSabor || []
+          const saborIndex = observacoesPorSabor.findIndex(obs => obs.sabor === action.payload.sabor)
+          
+          let newObservacoesPorSabor
+          if (saborIndex >= 0) {
+            // Atualizar observação existente
+            newObservacoesPorSabor = observacoesPorSabor.map((obs, idx) =>
+              idx === saborIndex
+                ? { ...obs, observacoes: action.payload.observacoes }
+                : obs
+            )
+          } else {
+            // Adicionar nova observação para o sabor
+            newObservacoesPorSabor = [
+              ...observacoesPorSabor,
+              { sabor: action.payload.sabor, observacoes: action.payload.observacoes }
+            ]
+          }
+          
+          // Remover observações vazias
+          newObservacoesPorSabor = newObservacoesPorSabor.filter(obs => obs.observacoes.trim() !== '')
+          
           return {
             ...item,
-            observacoes: action.payload.observacoes
+            observacoesPorSabor: newObservacoesPorSabor.length > 0 ? newObservacoesPorSabor : undefined
           }
         }
         return item
       })
 
       return {
+        ...state,
         items: newItems,
-        total: state.total, // Observações não alteram o preço
       }
     }
 

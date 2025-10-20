@@ -17,9 +17,12 @@ interface KanbanColumnProps {
   coluna: ColunaKanban
   pedidos: Pedido[]
   onDetalhes?: (pedido: Pedido) => void
+  onAceitar?: (pedido: Pedido) => void
+  onCancelar?: (pedido: Pedido) => void
+  onImprimir?: (pedido: Pedido) => void
 }
 
-export function KanbanColumn({ coluna, pedidos, onDetalhes }: KanbanColumnProps) {
+export function KanbanColumn({ coluna, pedidos, onDetalhes, onAceitar, onCancelar, onImprimir }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: coluna.id
   })
@@ -99,6 +102,9 @@ export function KanbanColumn({ coluna, pedidos, onDetalhes }: KanbanColumnProps)
                   key={pedido.id}
                   pedido={pedido}
                   onDetalhes={onDetalhes}
+                  onAceitar={onAceitar}
+                  onCancelar={onCancelar}
+                  onImprimir={onImprimir}
                 />
               ))
             )}

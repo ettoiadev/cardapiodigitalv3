@@ -11,7 +11,10 @@ import {
   User, 
   Package,
   Eye,
-  GripVertical
+  GripVertical,
+  Check,
+  X,
+  Printer
 } from 'lucide-react'
 import type { Pedido } from '@/types/pedido'
 import { formatDistanceToNow } from 'date-fns'
@@ -20,9 +23,12 @@ import { ptBR } from 'date-fns/locale'
 interface PedidoCardProps {
   pedido: Pedido
   onDetalhes?: (pedido: Pedido) => void
+  onAceitar?: (pedido: Pedido) => void
+  onCancelar?: (pedido: Pedido) => void
+  onImprimir?: (pedido: Pedido) => void
 }
 
-export function PedidoCard({ pedido, onDetalhes }: PedidoCardProps) {
+export function PedidoCard({ pedido, onDetalhes, onAceitar, onCancelar, onImprimir }: PedidoCardProps) {
   const {
     attributes,
     listeners,
@@ -171,15 +177,52 @@ export function PedidoCard({ pedido, onDetalhes }: PedidoCardProps) {
         )}
       </div>
 
-      {/* Footer - Total e Botão */}
+      {/* Footer - Total e Ações */}
       <div className="p-3 bg-gray-50 border-t border-gray-100 rounded-b-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-gray-500 font-medium mb-0.5">Total</p>
-            <p className="text-2xl font-bold text-green-600">
-              {formatCurrency(pedido.total)}
-            </p>
-          </div>
+        {/* Total */}
+        <div className="mb-3">
+          <p className="text-xs text-gray-500 font-medium mb-0.5">Total</p>
+          <p className="text-2xl font-bold text-green-600">
+            {formatCurrency(pedido.total)}
+          </p>
+        </div>
+
+        {/* Botões de Ação */}
+        <div className="grid grid-cols-2 gap-2">
+          {/* Linha 1: Aceitar e Cancelar */}
+          {pedido.status === 'pendente' && (
+            <>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => onAceitar?.(pedido)}
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+              >
+                <Check className="h-4 w-4 mr-1.5" />
+                Aceitar
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => onCancelar?.(pedido)}
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold"
+              >
+                <X className="h-4 w-4 mr-1.5" />
+                Cancelar
+              </Button>
+            </>
+          )}
+          
+          {/* Linha 2: Imprimir e Ver Detalhes */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onImprimir?.(pedido)}
+            className="border-gray-300 hover:bg-gray-100 font-semibold"
+          >
+            <Printer className="h-4 w-4 mr-1.5" />
+            Imprimir
+          </Button>
           <Button
             variant="default"
             size="sm"
@@ -187,7 +230,7 @@ export function PedidoCard({ pedido, onDetalhes }: PedidoCardProps) {
             className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
           >
             <Eye className="h-4 w-4 mr-1.5" />
-            Ver Detalhes
+            Detalhes
           </Button>
         </div>
       </div>

@@ -167,6 +167,17 @@ export default function EntregaPagamentoPage() {
         }
       }
       
+      // Combinar observações gerais com observações por sabor
+      let observacoesFinais = item.observacoes || ''
+      if (item.observacoesPorSabor && item.observacoesPorSabor.length > 0) {
+        const obsPorSabor = item.observacoesPorSabor
+          .map(obs => `${obs.sabor}: ${obs.observacoes}`)
+          .join(' | ')
+        observacoesFinais = observacoesFinais 
+          ? `${observacoesFinais} | ${obsPorSabor}` 
+          : obsPorSabor
+      }
+      
       return {
         produto_id: produtoId,
         nome_produto: item.nome,
@@ -177,7 +188,7 @@ export default function EntregaPagamentoPage() {
         quantidade: item.quantidade,
         preco_unitario: item.preco,
         preco_total: item.preco * item.quantidade,
-        observacoes: item.observacoes || null
+        observacoes: observacoesFinais || null
       }
     })
   }
@@ -344,7 +355,7 @@ export default function EntregaPagamentoPage() {
               {state.items?.map((item, index) => (
                 <div key={index} className="flex justify-between text-sm">
                   <span className="text-gray-700">
-                    {item.quantidade}x {item.nome}
+                    {item.quantidade}x <span className="font-bold">{item.nome}</span>
                   </span>
                   <span className="text-gray-900 font-medium">
                     {formatCurrency(item.preco * item.quantidade)}
