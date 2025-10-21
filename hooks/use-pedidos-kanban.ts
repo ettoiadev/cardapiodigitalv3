@@ -47,6 +47,7 @@ export function usePedidosKanban(filtrosIniciais: FiltrosPedidos = {}): UsePedid
       let query = supabase
         .from('vw_pedidos_kanban')
         .select('*')
+        .neq('status', 'cancelado') // Excluir pedidos cancelados do Kanban
 
       // Aplicar filtros
       if (filtros.status && filtros.status.length > 0) {
@@ -84,33 +85,52 @@ export function usePedidosKanban(filtrosIniciais: FiltrosPedidos = {}): UsePedid
   }, [filtros])
 
   /**
-   * Atualiza o status de um pedido
+   * Atualiza o status de um pedido com atualização otimista
    */
   const atualizarStatus = useCallback(async (
     pedidoId: string, 
     novoStatus: StatusPedido,
     alteradoPor?: string
   ): Promise<boolean> => {
+    // Salvar estado anterior para rollback
+    const pedidoAnterior = pedidos.find(p => p.id === pedidoId)
+    
+    // Atualização otimista - atualiza UI imediatamente
+    setPedidos(prev => prev.map(p => 
+      p.id === pedidoId 
+        ? { ...p, status: novoStatus, updated_at: new Date().toISOString() }
+        : p
+    ))
+
     try {
       const { error: updateError } = await supabase
         .from('pedidos')
         .update({
           status: novoStatus,
-          alterado_por: alteradoPor,
+          alterado_por: alteradoPor || 'admin',
           updated_at: new Date().toISOString()
         })
         .eq('id', pedidoId)
 
       if (updateError) throw updateError
 
-      toast.success('Status atualizado com sucesso')
+      // NÃO recarregar aqui - deixar o Realtime fazer isso
+      // O Realtime vai atualizar automaticamente quando detectar a mudança
+      
       return true
     } catch (err) {
       console.error('Erro ao atualizar status:', err)
       toast.error('Erro ao atualizar status')
+      
+      // Reverter para estado anterior em caso de erro
+      if (pedidoAnterior) {
+        setPedidos(prev => prev.map(p => 
+          p.id === pedidoId ? pedidoAnterior : p
+        ))
+      }
       return false
     }
-  }, [])
+  }, [pedidos])
 
   /**
    * Atualiza a ordem de um pedido no Kanban

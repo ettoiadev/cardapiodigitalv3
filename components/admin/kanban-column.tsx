@@ -20,9 +20,20 @@ interface KanbanColumnProps {
   onAceitar?: (pedido: Pedido) => void
   onCancelar?: (pedido: Pedido) => void
   onImprimir?: (pedido: Pedido) => void
+  onEnviarEntrega?: (pedido: Pedido) => void
+  onFinalizar?: (pedido: Pedido) => void
 }
 
-export function KanbanColumn({ coluna, pedidos, onDetalhes, onAceitar, onCancelar, onImprimir }: KanbanColumnProps) {
+export function KanbanColumn({ 
+  coluna, 
+  pedidos, 
+  onDetalhes, 
+  onAceitar, 
+  onCancelar, 
+  onImprimir,
+  onEnviarEntrega,
+  onFinalizar
+}: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: coluna.id
   })
@@ -61,22 +72,22 @@ export function KanbanColumn({ coluna, pedidos, onDetalhes, onAceitar, onCancela
   }
 
   return (
-    <div className="flex-shrink-0 w-80">
+    <div className="w-full h-full">
       {/* Container com cor de fundo da coluna */}
-      <div className={`${getBackgroundColor()} rounded-lg shadow-lg ${isOver ? 'ring-2 ring-white ring-offset-2' : ''}`}>
+      <div className={`${getBackgroundColor()} rounded-lg shadow-lg h-full flex flex-col ${isOver ? 'ring-2 ring-white ring-offset-2' : ''}`}>
         {/* Header da coluna */}
-        <div className="p-4 pb-3">
+        <div className="p-3 md:p-4 pb-3 flex-shrink-0">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 text-white">
               {getIcon()}
-              <h3 className="font-bold text-lg">{coluna.titulo}</h3>
+              <h3 className="font-bold text-base md:text-lg">{coluna.titulo}</h3>
             </div>
             <Badge variant="secondary" className="bg-white/90 text-gray-900 font-bold px-2.5 py-1">
               {pedidos.length}
             </Badge>
           </div>
           {totalValor > 0 && (
-            <p className="text-white text-sm font-semibold">
+            <p className="text-white text-xs md:text-sm font-semibold">
               Total: {formatCurrency(totalValor)}
             </p>
           )}
@@ -85,8 +96,8 @@ export function KanbanColumn({ coluna, pedidos, onDetalhes, onAceitar, onCancela
         {/* Área de drop dos cards */}
         <div
           ref={setNodeRef}
-          className="px-3 pb-3 overflow-y-auto"
-          style={{ minHeight: '400px', maxHeight: 'calc(100vh - 280px)' }}
+          className="px-2 md:px-3 pb-3 overflow-y-auto flex-1"
+          style={{ minHeight: '300px', maxHeight: 'calc(100vh - 280px)' }}
         >
           <SortableContext
             items={pedidos.map(p => p.id)}
@@ -105,6 +116,8 @@ export function KanbanColumn({ coluna, pedidos, onDetalhes, onAceitar, onCancela
                   onAceitar={onAceitar}
                   onCancelar={onCancelar}
                   onImprimir={onImprimir}
+                  onEnviarEntrega={onEnviarEntrega}
+                  onFinalizar={onFinalizar}
                 />
               ))
             )}

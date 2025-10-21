@@ -323,6 +323,12 @@ export function PedidoDetalhesModal({
             <div class="info"><strong>Telefone:</strong> ${escapeHtml(pedido.telefone_cliente || 'N/A')}</div>
             <div class="info"><strong>Endereço:</strong> ${escapeHtml(pedido.endereco_entrega || 'Retirada no balcão')}</div>
             <div class="info"><strong>Pagamento:</strong> ${escapeHtml(pedido.forma_pagamento)}</div>
+            ${pedido.forma_pagamento === 'dinheiro' && pedido.troco_para ? `
+              <div class="info" style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 10px; margin: 10px 0;">
+                <strong>💵 Cliente vai pagar com:</strong> R$ ${pedido.troco_para.toFixed(2)}<br>
+                <strong>💰 Troco a devolver:</strong> <span style="font-size: 18px; color: #b45309;">R$ ${(pedido.troco_para - pedido.total).toFixed(2)}</span>
+              </div>
+            ` : ''}
 
             <div class="items">
               <h2>Itens:</h2>
@@ -373,8 +379,8 @@ export function PedidoDetalhesModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <ShoppingCart className="h-5 w-5" />
@@ -390,7 +396,7 @@ export function PedidoDetalhesModal({
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="max-h-[calc(90vh-200px)]">
+          <ScrollArea className="flex-1 overflow-y-auto max-h-[calc(90vh-250px)]">
             <div className="space-y-6 pr-4">
               {/* Informações do Cliente */}
               <div className="bg-white p-4 rounded-lg border">
@@ -567,6 +573,23 @@ export function PedidoDetalhesModal({
                     <span>Forma de Pagamento:</span>
                     <span className="capitalize font-medium">{pedido.forma_pagamento}</span>
                   </div>
+                  {pedido.forma_pagamento === 'dinheiro' && pedido.troco_para && (
+                    <>
+                      <Separator />
+                      <div className="bg-yellow-50 border border-yellow-200 rounded p-3 space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span className="text-yellow-700 font-semibold">💵 Cliente vai pagar com:</span>
+                          <span className="font-bold text-yellow-900">{formatCurrency(pedido.troco_para)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-yellow-700 font-semibold">💰 Troco a devolver:</span>
+                          <span className="font-bold text-yellow-900 text-lg">
+                            {formatCurrency(pedido.troco_para - pedido.total)}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -628,61 +651,62 @@ export function PedidoDetalhesModal({
             </div>
           </ScrollArea>
 
-          {/* Ações - Mesmos botões do card */}
-          <div className="pt-4 border-t">
-            <div className="grid grid-cols-2 gap-2">
-              {/* Aceitar - apenas para pendentes */}
-              {pedido.status === 'pendente' && (
+          {/* Ações - Botões em uma linha */}
+          <div className="flex-shrink-0 pt-3 border-t mt-auto">
+            <div className="grid grid-cols-3 gap-2">
+              {/* Cancelar - esquerda */}
+              {pedido.status !== 'cancelado' && pedido.status !== 'finalizado' ? (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowCancelDialog(true)}
+                  className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs md:text-sm"
+                >
+                  <X className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-1.5" />
+                  Cancelar
+                </Button>
+              ) : (
+                <div></div>
+              )}
+
+              {/* Imprimir - centro */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleImprimir}
+                className="bg-gray-100 border-gray-300 hover:bg-gray-200 font-semibold text-xs md:text-sm"
+              >
+                <Printer className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-1.5" />
+                Imprimir
+              </Button>
+
+              {/* Aceitar/Confirmar - direita */}
+              {pedido.status === 'pendente' ? (
                 <Button
                   variant="default"
                   size="sm"
                   onClick={handleAceitar}
                   disabled={atualizandoStatus}
-                  className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+                  className="bg-green-600 hover:bg-green-700 text-white font-semibold text-xs md:text-sm"
                 >
-                  {atualizandoStatus && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
-                  {!atualizandoStatus && <Check className="h-4 w-4 mr-1.5" />}
+                  {atualizandoStatus && <Loader2 className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-1.5 animate-spin" />}
+                  {!atualizandoStatus && <Check className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-1.5" />}
                   Aceitar
                 </Button>
-              )}
-
-              {/* Cancelar - apenas para não finalizados/cancelados */}
-              {pedido.status !== 'cancelado' && pedido.status !== 'finalizado' && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setShowCancelDialog(true)}
-                  className="bg-red-600 hover:bg-red-700 text-white font-semibold"
-                >
-                  <X className="h-4 w-4 mr-1.5" />
-                  Cancelar
-                </Button>
-              )}
-
-              {/* Imprimir */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleImprimir}
-                className="border-gray-300 hover:bg-gray-100 font-semibold"
-              >
-                <Printer className="h-4 w-4 mr-1.5" />
-                Imprimir
-              </Button>
-
-              {/* Confirmar - para outros status */}
-              {pedido.status !== 'pendente' && pedido.status !== 'cancelado' && pedido.status !== 'finalizado' && (
+              ) : pedido.status !== 'cancelado' && pedido.status !== 'finalizado' ? (
                 <Button
                   variant="default"
                   size="sm"
                   onClick={handleConfirmar}
                   disabled={atualizandoStatus}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs md:text-sm"
                 >
-                  {atualizandoStatus && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
-                  {!atualizandoStatus && <Check className="h-4 w-4 mr-1.5" />}
+                  {atualizandoStatus && <Loader2 className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-1.5 animate-spin" />}
+                  {!atualizandoStatus && <Check className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-1.5" />}
                   Confirmar
                 </Button>
+              ) : (
+                <div></div>
               )}
             </div>
           </div>

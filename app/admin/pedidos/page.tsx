@@ -39,6 +39,7 @@ import type { Pedido, StatusPedido, ColunaKanban, TipoEntrega } from '@/types/pe
 import { toast } from 'sonner'
 
 // Configuração das colunas do Kanban
+// Nota: Pedidos cancelados não aparecem no Kanban, apenas em relatórios
 const COLUNAS: ColunaKanban[] = [
   {
     id: 'pendente',
@@ -71,14 +72,6 @@ const COLUNAS: ColunaKanban[] = [
     corTexto: 'text-white',
     icone: 'check-circle',
     ordem: 4
-  },
-  {
-    id: 'cancelado',
-    titulo: 'Cancelado',
-    cor: 'bg-red-500',
-    corTexto: 'text-white',
-    icone: 'x-circle',
-    ordem: 5
   }
 ]
 
@@ -197,12 +190,18 @@ export default function PedidosPage() {
     const { active, over } = event
     setPedidoArrastando(null)
 
-    if (!over) return
+    if (!over) {
+      toast.info('Pedido não foi movido')
+      return
+    }
 
     const pedidoId = active.id as string
     const pedido = pedidos.find(p => p.id === pedidoId)
     
-    if (!pedido) return
+    if (!pedido) {
+      toast.error('Pedido não encontrado')
+      return
+    }
 
     const novoStatus = over.id as StatusPedido
     const statusAtual = pedido.status
@@ -211,16 +210,44 @@ export default function PedidosPage() {
     if (novoStatus !== statusAtual) {
       // Validar transição
       if (!validarTransicao(statusAtual, novoStatus)) {
-        toast.error(`Não é possível mover de "${statusAtual}" para "${novoStatus}"`)
+        const statusLabels = {
+          pendente: 'Pendente',
+          em_preparo: 'Em Preparo',
+          saiu_entrega: 'Saiu para Entrega',
+          finalizado: 'Finalizado',
+          cancelado: 'Cancelado'
+        }
+        toast.error(
+          `Transição não permitida: ${statusLabels[statusAtual]} → ${statusLabels[novoStatus]}`,
+          { duration: 4000 }
+        )
         return
       }
 
+      // Mostrar loading toast
+      const loadingToast = toast.loading('Atualizando pedido...')
+
       // Atualizar status
-      const sucesso = await atualizarStatus(pedidoId, novoStatus)
+      const sucesso = await atualizarStatus(pedidoId, novoStatus, 'admin')
+      
+      // Remover loading toast
+      toast.dismiss(loadingToast)
       
       if (sucesso) {
-        toast.success(`Pedido movido para "${novoStatus}"`)
+        const statusLabels = {
+          pendente: 'Pendente',
+          em_preparo: 'Em Preparo',
+          saiu_entrega: 'Saiu para Entrega',
+          finalizado: 'Finalizado',
+          cancelado: 'Cancelado'
+        }
+        toast.success(
+          `Pedido ${pedido.numero_pedido} movido para "${statusLabels[novoStatus]}"`,
+          { duration: 3000 }
+        )
       }
+    } else {
+      toast.info('Pedido permaneceu na mesma coluna')
     }
   }
 
@@ -230,9 +257,16 @@ export default function PedidosPage() {
   }
 
   const handleAceitar = async (pedido: Pedido) => {
-    const sucesso = await atualizarStatus(pedido.id, 'em_preparo')
+    const loadingToast = toast.loading(`Aceitando pedido ${pedido.numero_pedido}...`)
+    
+    const sucesso = await atualizarStatus(pedido.id, 'em_preparo', 'admin')
+    
+    toast.dismiss(loadingToast)
+    
     if (sucesso) {
-      toast.success('Pedido aceito e movido para "Em Preparo"')
+      toast.success(`Pedido ${pedido.numero_pedido} aceito e movido para "Em Preparo"`, {
+        duration: 3000
+      })
     }
   }
 
@@ -242,42 +276,103 @@ export default function PedidosPage() {
     // O modal de detalhes já tem opção de cancelar
   }
 
+  const handleEnviarEntrega = async (pedido: Pedido) => {
+    const loadingToast = toast.loading(`Enviando pedido ${pedido.numero_pedido} para entrega...`)
+    
+    const sucesso = await atualizarStatus(pedido.id, 'saiu_entrega', 'admin')
+    
+    toast.dismiss(loadingToast)
+    
+    if (sucesso) {
+      toast.success(`Pedido ${pedido.numero_pedido} saiu para entrega! 🚚`, {
+        duration: 3000
+      })
+    }
+  }
+
+  const handleFinalizar = async (pedido: Pedido) => {
+    const loadingToast = toast.loading(`Finalizando pedido ${pedido.numero_pedido}...`)
+    
+    const sucesso = await atualizarStatus(pedido.id, 'finalizado', 'admin')
+    
+    toast.dismiss(loadingToast)
+    
+    if (sucesso) {
+      toast.success(`Pedido ${pedido.numero_pedido} finalizado com sucesso! ✅`, {
+        duration: 3000
+      })
+    }
+  }
+
   const handleImprimir = (pedido: Pedido) => {
-    // Abrir janela de impressão
-    const printWindow = window.open('', '_blank')
-    if (printWindow) {
+    try {
+      toast.info(`Preparando impressão do pedido ${pedido.numero_pedido}...`)
+      
+      // Abrir janela de impressão
+      const printWindow = window.open('', '_blank')
+      if (!printWindow) {
+        toast.error('Não foi possível abrir a janela de impressão. Verifique se pop-ups estão bloqueados.')
+        return
+      }
+
       printWindow.document.write(`
         <html>
           <head>
             <title>Pedido ${pedido.numero_pedido}</title>
             <style>
-              body { font-family: Arial, sans-serif; padding: 20px; }
-              h1 { font-size: 24px; margin-bottom: 10px; }
-              .info { margin: 10px 0; }
-              .items { margin-top: 20px; }
-              .item { margin: 5px 0; }
-              .total { font-size: 20px; font-weight: bold; margin-top: 20px; }
+              body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+              h1 { font-size: 24px; margin-bottom: 10px; text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
+              .info { margin: 10px 0; padding: 5px 0; }
+              .items { margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px; }
+              .item { margin: 8px 0; padding: 5px; background: #f9f9f9; border-left: 3px solid #333; }
+              .total { font-size: 20px; font-weight: bold; margin-top: 20px; text-align: center; border-top: 2px solid #333; padding-top: 10px; }
+              .header { background: #f0f0f0; padding: 10px; margin-bottom: 20px; text-align: center; }
+              @media print {
+                body { padding: 10px; }
+              }
             </style>
           </head>
           <body>
-            <h1>Pedido ${pedido.numero_pedido}</h1>
+            <div class="header">
+              <h1>Pedido ${pedido.numero_pedido}</h1>
+              <p><strong>Status:</strong> ${pedido.status}</p>
+            </div>
             <div class="info"><strong>Cliente:</strong> ${pedido.nome_cliente || 'N/A'}</div>
             <div class="info"><strong>Telefone:</strong> ${pedido.telefone_cliente || 'N/A'}</div>
-            <div class="info"><strong>Endereço:</strong> ${pedido.endereco_entrega || 'Retirada no balcão'}</div>
+            <div class="info"><strong>Tipo:</strong> ${pedido.tipo_entrega === 'delivery' ? 'Delivery' : pedido.tipo_entrega === 'balcao' ? 'Balcão' : 'Mesa'}</div>
+            ${pedido.endereco_entrega ? `<div class="info"><strong>Endereço:</strong> ${pedido.endereco_entrega}${pedido.endereco_bairro ? `, ${pedido.endereco_bairro}` : ''}</div>` : ''}
             <div class="info"><strong>Pagamento:</strong> ${pedido.forma_pagamento}</div>
             <div class="items">
-              <h2>Itens:</h2>
+              <h2>Itens do Pedido:</h2>
               ${pedido.itens_resumo?.map(item => `
-                <div class="item">${item.quantidade}x ${item.nome} ${item.tamanho ? `(${item.tamanho})` : ''}</div>
-              `).join('') || ''}
+                <div class="item">
+                  <strong>${item.quantidade}x ${item.nome}</strong>
+                  ${item.tamanho ? `<br>Tamanho: ${item.tamanho}` : ''}
+                  ${item.sabores && item.sabores.length > 0 ? `<br>Sabores: ${item.sabores.join(', ')}` : ''}
+                </div>
+              `).join('') || '<p>Nenhum item</p>'}
             </div>
-            ${pedido.observacoes ? `<div class="info"><strong>Observações:</strong> ${pedido.observacoes}</div>` : ''}
-            <div class="total">Total: R$ ${pedido.total.toFixed(2)}</div>
-            <script>window.print(); window.close();</script>
+            ${pedido.observacoes ? `<div class="info" style="background: #fff3cd; padding: 10px; border-left: 3px solid #ffc107;"><strong>Observações:</strong> ${pedido.observacoes}</div>` : ''}
+            <div class="total">
+              <p>Subtotal: R$ ${pedido.subtotal.toFixed(2)}</p>
+              <p>Taxa de Entrega: R$ ${pedido.taxa_entrega.toFixed(2)}</p>
+              <p style="font-size: 24px; color: #28a745;">TOTAL: R$ ${pedido.total.toFixed(2)}</p>
+            </div>
+            <script>
+              window.onload = function() {
+                window.print();
+                setTimeout(function() { window.close(); }, 500);
+              }
+            </script>
           </body>
         </html>
       `)
       printWindow.document.close()
+      
+      toast.success('Documento de impressão gerado com sucesso')
+    } catch (error) {
+      console.error('Erro ao imprimir:', error)
+      toast.error('Erro ao gerar documento de impressão')
     }
   }
 
@@ -367,7 +462,18 @@ export default function PedidosPage() {
         </div>
       )}
 
+      {/* Loading State */}
+      {loading && pedidos.length === 0 && (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <RefreshCw className="h-12 w-12 animate-spin text-blue-500 mx-auto mb-4" />
+            <p className="text-gray-600 font-medium">Carregando pedidos...</p>
+          </div>
+        </div>
+      )}
+
       {/* Kanban Board */}
+      {!loading || pedidos.length > 0 ? (
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -375,7 +481,7 @@ export default function PedidosPage() {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-3 overflow-x-auto pb-4 px-1">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 pb-4 px-1">
           {COLUNAS.map(coluna => (
             <KanbanColumn
               key={coluna.id}
@@ -385,6 +491,8 @@ export default function PedidosPage() {
               onAceitar={handleAceitar}
               onCancelar={handleCancelar}
               onImprimir={handleImprimir}
+              onEnviarEntrega={handleEnviarEntrega}
+              onFinalizar={handleFinalizar}
             />
           ))}
         </div>
@@ -397,6 +505,7 @@ export default function PedidosPage() {
           )}
         </DragOverlay>
       </DndContext>
+      ) : null}
 
       {/* Modal de Detalhes */}
       <PedidoDetalhesModal

@@ -21,8 +21,23 @@ export function AdminRealtimePedidos({ onNewPedido }: AdminRealtimePedidosProps)
 
   useEffect(() => {
     let mounted = true
+    let reloadTimeout: NodeJS.Timeout | null = null
 
-    // Criar canal para escutar novos pedidos
+    // Função debounced para recarregar (evita múltiplos reloads)
+    const debouncedReload = () => {
+      if (reloadTimeout) {
+        clearTimeout(reloadTimeout)
+      }
+      
+      reloadTimeout = setTimeout(() => {
+        if (mounted && callbackRef.current) {
+          console.log('🔄 Recarregando pedidos após mudança...')
+          callbackRef.current()
+        }
+      }, 300) // Aguarda 300ms antes de recarregar
+    }
+
+    // Criar canal para escutar novos pedidos E atualizações
     const channel = supabase
       .channel('admin-pedidos')
       .on(
@@ -33,7 +48,7 @@ export function AdminRealtimePedidos({ onNewPedido }: AdminRealtimePedidosProps)
           table: 'pedidos'
         },
         (payload) => {
-          if (!mounted) return // Não processar se desmontado
+          if (!mounted) return
           
           console.log('🔔 Novo pedido recebido:', payload.new)
           
@@ -43,28 +58,45 @@ export function AdminRealtimePedidos({ onNewPedido }: AdminRealtimePedidosProps)
           // Tocar som
           playNotificationSound()
           
-          // Callback para recarregar lista (usando ref)
-          if (callbackRef.current) {
-            callbackRef.current()
-          }
+          // Recarregar com debounce
+          debouncedReload()
 
           // Resetar contador após 5 segundos
           const timer = setTimeout(() => {
             if (mounted) {
               setNovosPedidos(prev => Math.max(0, prev - 1))
             }
-            // Remover timer do Set após execução
             timersRef.current.delete(timer)
           }, 5000)
           
-          // Adicionar timer ao Set para cleanup posterior
           timersRef.current.add(timer)
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'pedidos'
+        },
+        (payload) => {
+          if (!mounted) return
+          
+          console.log('📝 Pedido atualizado:', payload.new)
+          
+          // Recarregar com debounce (evita múltiplos reloads)
+          debouncedReload()
         }
       )
       .subscribe()
 
     return () => {
       mounted = false
+      
+      // Limpar timeout de reload
+      if (reloadTimeout) {
+        clearTimeout(reloadTimeout)
+      }
       
       // Limpar TODOS os timers pendentes
       timersRef.current.forEach(timer => clearTimeout(timer))

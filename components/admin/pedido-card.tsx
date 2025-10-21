@@ -240,7 +240,7 @@ export function PedidoCard({ pedido, onDetalhes, onAceitar, onCancelar, onImprim
             variant="outline"
             size="sm"
             onClick={() => onImprimir?.(pedido)}
-            className="border-gray-300 hover:bg-gray-100 font-semibold"
+            className="bg-gray-100 border-gray-300 hover:bg-gray-200 font-semibold"
           >
             <Printer className="h-4 w-4 mr-1.5" />
             Imprimir
