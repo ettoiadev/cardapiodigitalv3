@@ -1,6 +1,7 @@
 "use client"
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { supabase, testSupabaseConnection, getSupabaseDebugInfo } from "@/lib/supabase"
+import { logger, logWithContext, logPerformance } from "@/lib/logger"
 
 interface Admin {
   id: string
@@ -33,12 +34,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (parsed && typeof parsed === 'object' && parsed.id) {
           setAdmin(parsed)
         } else {
-          console.warn("Dados de admin inválidos no localStorage")
+          logger.warn("Dados de admin inválidos no localStorage")
           localStorage.removeItem("admin")
         }
       }
     } catch (error) {
-      console.error("Erro ao carregar admin do localStorage:", error)
+      logger.error("Erro ao carregar admin do localStorage:", error)
       localStorage.removeItem("admin")
     }
     setLoading(false)
@@ -48,83 +49,86 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const connectionTest = async () => {
-    console.log("🔧 Testando conexão com Supabase...")
+    logger.debug("🔧 Testando conexão com Supabase...")
     const result = await testSupabaseConnection()
-    console.log("📊 Resultado do teste:", result)
+    logger.debug("📊 Resultado do teste:", result)
     return result
   }
 
   const login = async (email: string, senha: string): Promise<boolean> => {
+    const log = logWithContext('AdminLogin')
+    const startTime = Date.now()
+
     try {
-      console.log("🔐 Iniciando processo de login...")
-      console.log("📧 Email fornecido:", email)
-      console.log("🔑 Senha fornecida (length):", senha.length)
-      
+      log("Iniciando processo de login...")
+      log("Email fornecido:", email)
+      log("Senha fornecida (length):", senha.length)
+
       // Test connection first
       const connectionResult = await testSupabaseConnection()
       if (!connectionResult.success) {
-        console.error("❌ Falha na conexão:", connectionResult.error)
-        console.error("📋 Detalhes:", connectionResult.details)
+        logger.error("Falha na conexão:", connectionResult.error)
+        logger.error("Detalhes:", connectionResult.details)
         throw new Error(`Erro de conexão: ${connectionResult.error}`)
       }
 
-      console.log("✅ Conexão com Supabase verificada")
+      log("Conexão com Supabase verificada")
 
       // Primeiro, vamos verificar se existem admins na tabela
-      console.log("🔍 Verificando todos os admins na tabela...")
+      log("Verificando todos os admins na tabela...")
       const { data: allAdmins, error: allAdminsError } = await supabase
         .from("admins")
         .select("*")
 
       if (allAdminsError) {
-        console.error("❌ Erro ao consultar todos os admins:", allAdminsError)
+        logger.error("Erro ao consultar todos os admins:", allAdminsError)
       } else {
-        console.log("📋 Todos os admins encontrados:", allAdmins)
-        console.log("📊 Total de admins:", allAdmins?.length || 0)
+        log("Todos os admins encontrados:", allAdmins)
+        log("Total de admins:", allAdmins?.length || 0)
       }
 
       // Agora vamos tentar a consulta específica com logs detalhados
-      console.log("🔍 Buscando admin específico com email:", email)
+      log("Buscando admin específico com email:", email)
       const { data, error, count } = await supabase
         .from("admins")
         .select("*", { count: 'exact' })
         .eq("email", email)
         .eq("ativo", true)
 
-      console.log("📊 Resultado da consulta:", { data, error, count })
+      log("Resultado da consulta:", { data, error, count })
 
       if (error) {
-        console.error("❌ Erro na consulta de admin:", error)
-        console.error("🔍 Código do erro:", error.code)
-        console.error("🔍 Mensagem do erro:", error.message)
-        console.error("🔍 Detalhes do erro:", error.details)
-        
+        logger.error("Erro na consulta de admin:", error)
+        logger.error("Código do erro:", error.code)
+        logger.error("Mensagem do erro:", error.message)
+        logger.error("Detalhes do erro:", error.details)
+
         if (error.code === 'PGRST116') {
-          console.error("📋 PGRST116: Nenhum admin encontrado com este email")
+          logger.error("PGRST116: Nenhum admin encontrado com este email")
           // Vamos tentar uma consulta mais permissiva
-          console.log("🔍 Tentando consulta sem filtro de ativo...")
+          log("Tentando consulta sem filtro de ativo...")
           const { data: dataWithoutActive, error: errorWithoutActive } = await supabase
             .from("admins")
             .select("*")
             .eq("email", email)
-          
-          console.log("📊 Resultado sem filtro ativo:", { dataWithoutActive, errorWithoutActive })
+
+          log("Resultado sem filtro ativo:", { dataWithoutActive, errorWithoutActive })
         } else {
-          console.error("📋 Erro técnico:", error.message)
+          logger.error("Erro técnico:", error.message)
         }
         return false
       }
 
       if (!data || data.length === 0) {
-        console.error("❌ Erro: Nenhum admin encontrado com este email")
-        console.log("🔍 Dados retornados:", data)
-        console.log("🔍 Count:", count)
+        logger.error("Erro: Nenhum admin encontrado com este email")
+        log("Dados retornados:", data)
+        log("Count:", count)
         return false
       }
 
       const adminData = data[0]
-      console.log("👤 Admin encontrado:", adminData)
-      console.log("🔑 Verificando senha com bcrypt...")
+      log("Admin encontrado:", adminData)
+      log("Verificando senha com bcrypt...")
 
       // Verificar senha usando a função PostgreSQL com bcrypt
       const { data: passwordCheck, error: passwordError } = await supabase
@@ -134,31 +138,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
 
       if (passwordError) {
-        console.error("❌ Erro ao verificar senha:", passwordError)
+        logger.error("Erro ao verificar senha:", passwordError)
         return false
       }
 
       if (!passwordCheck) {
-        console.error("❌ Erro: Senha incorreta")
+        logger.error("Erro: Senha incorreta")
         return false
       }
 
-      console.log("✅ Senha verificada com sucesso")
+      log("Senha verificada com sucesso")
 
       const responseAdminData = {
         id: adminData.id,
         email: adminData.email,
         nome: adminData.nome,
       }
-      
+
       setAdmin(responseAdminData)
       localStorage.setItem("admin", JSON.stringify(responseAdminData))
-      console.log("✅ Login realizado com sucesso")
+      log("Login realizado com sucesso")
+
+      logPerformance('AdminLogin', startTime)
       return true
     } catch (error) {
-      console.error("❌ Erro no sistema de login:", error)
+      logger.error("Erro no sistema de login:", error)
       if (error instanceof Error) {
-        console.error("🔍 Stack trace:", error.stack)
+        logger.error("Stack trace:", error.stack)
       }
       return false
     }
@@ -173,14 +179,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Test connection first
       const connectionResult = await testSupabaseConnection()
       if (!connectionResult.success) {
-        console.error("❌ Falha na conexão para atualizar credenciais:", connectionResult.error)
+        logger.error("Falha na conexão para atualizar credenciais:", connectionResult.error)
         throw new Error(`Erro de conexão: ${connectionResult.error}`)
       }
 
       // Por enquanto, vamos simular a atualização para desenvolvimento
       // Em produção, isso deveria ser feito com hash seguro no backend
-      console.log("Simulando atualização de credenciais:", { novoEmail, novaSenha })
-      
+      logger.debug("Simulando atualização de credenciais:", { novoEmail, novaSenha })
+
       // Atualizar dados locais
       const updatedAdmin = { ...admin, email: novoEmail }
       setAdmin(updatedAdmin)
@@ -189,7 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Simular sucesso
       return true
     } catch (error) {
-      console.error("Erro ao atualizar credenciais:", error)
+      logger.error("Erro ao atualizar credenciais:", error)
       return false
     }
   }
@@ -197,10 +203,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setAdmin(null)
     localStorage.removeItem("admin")
-    console.log("🚪 Logout realizado")
+    logger.log("🚪 Logout realizado")
   }
 
-  return <AuthContext.Provider value={{ admin, login, logout, updateCredentials, loading, connectionTest }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ admin, login, logout, updateCredentials, loading, connectionTest }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {

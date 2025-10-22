@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useReducer, useEffect, type ReactNode } from "react"
+import { createContext, useContext, useReducer, useEffect, useRef, type ReactNode } from "react"
 
 export interface CartItem {
   id: string
@@ -332,6 +332,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   const [state, dispatch] = useReducer(cartReducer, { items: [], total: 0 }, loadInitialState)
 
+  // Ref para gerenciar o timer do backup (evita memory leak)
+  const backupTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   // Função para limpar localStorage
   const clearLocalStorage = () => {
     if (typeof window !== "undefined") {
@@ -343,39 +346,36 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  // Salvar no localStorage imediatamente + backup com debounce
+  // Salvar no localStorage imediatamente + backup com debounce (SEM memory leak)
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window === "undefined") return
+
+    const cartData = JSON.stringify(state)
+
+    // Salvar imediatamente no localStorage (sempre atualizado)
+    try {
+      localStorage.setItem("pizzaria-cart", cartData)
+    } catch (error) {
+      console.error("Erro ao salvar carrinho no localStorage:", error)
+    }
+
+    // Backup com debounce (usando ref para evitar memory leak)
+    if (backupTimeoutRef.current) {
+      clearTimeout(backupTimeoutRef.current)
+    }
+
+    backupTimeoutRef.current = setTimeout(() => {
       try {
-        const cartData = JSON.stringify(state)
-        
-        // CORREÇÃO: Salvar imediatamente no localStorage
-        // Evita perda de dados se usuário fechar aba rapidamente
-        localStorage.setItem("pizzaria-cart", cartData)
-        
-        // Debounce apenas para backup em sessionStorage
-        const timer = setTimeout(() => {
-          try {
-            sessionStorage.setItem("pizzaria-cart-backup", cartData)
-          } catch (backupError) {
-            console.error("Erro ao salvar backup:", backupError)
-          }
-        }, 300)
-        
-        return () => clearTimeout(timer)
-      } catch (error) {
-        console.error("Erro ao salvar carrinho no localStorage:", error)
-        
-        // Tentar recuperar do backup se falhar
-        try {
-          const backup = sessionStorage.getItem("pizzaria-cart-backup")
-          if (backup) {
-            localStorage.setItem("pizzaria-cart", backup)
-            console.log("✅ Carrinho recuperado do backup")
-          }
-        } catch (backupError) {
-          console.error("Erro ao recuperar backup:", backupError)
-        }
+        sessionStorage.setItem("pizzaria-cart-backup", cartData)
+      } catch (backupError) {
+        console.error("Erro ao salvar backup:", backupError)
+      }
+    }, 300)
+
+    // Cleanup function limpa o timeout
+    return () => {
+      if (backupTimeoutRef.current) {
+        clearTimeout(backupTimeoutRef.current)
       }
     }
   }, [state])

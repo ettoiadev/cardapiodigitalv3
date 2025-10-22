@@ -45,11 +45,42 @@ import { createClient } from '@supabase/supabase-js'
  * // → Acesso permitido, continua normalmente
  */
 export async function middleware(req: NextRequest) {
-  // Middleware simplificado - a verificação real é feita nas páginas
-  // Aqui apenas permitimos navegação livre
+  const { pathname } = req.nextUrl
   
-  console.log('🔓 Middleware: Permitindo acesso a', req.nextUrl.pathname)
+  // Rotas que requerem autenticação
+  const protectedRoutes = ['/checkout', '/meus-pedidos', '/perfil', '/pedido']
+  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route))
   
+  // Rotas de autenticação (login/cadastro)
+  const authRoutes = ['/login', '/cadastro']
+  const isAuthRoute = authRoutes.some(route => pathname.startsWith(route))
+  
+  // Verificar se usuário está autenticado através do cookie do Supabase
+  const supabaseToken = req.cookies.get('sb-auth-token')
+  const isAuthenticated = !!supabaseToken?.value
+  
+  // CASO 1: Rota protegida + usuário NÃO autenticado → Redirecionar para login
+  if (isProtectedRoute && !isAuthenticated) {
+    const url = req.nextUrl.clone()
+    url.pathname = '/login'
+    url.searchParams.set('returnUrl', pathname)
+    
+    console.log('🔒 Middleware: Redirecionando para login -', pathname)
+    return NextResponse.redirect(url)
+  }
+  
+  // CASO 2: Rota de autenticação + usuário JÁ autenticado → Redirecionar para home
+  if (isAuthRoute && isAuthenticated) {
+    const url = req.nextUrl.clone()
+    url.pathname = '/'
+    url.search = '' // Limpar query params
+    
+    console.log('🔓 Middleware: Usuário já autenticado, redirecionando para home')
+    return NextResponse.redirect(url)
+  }
+  
+  // CASO 3: Acesso permitido
+  console.log('✅ Middleware: Acesso permitido -', pathname)
   return NextResponse.next()
 }
 

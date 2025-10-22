@@ -142,7 +142,9 @@ export default function EntregaPagamentoPage() {
       taxa_entrega: deliveryFee,
       total,
       observacoes: observacoes || null,
-      troco_para: formaPagamento === "dinheiro" && trocoPara ? parseFloat(trocoPara.replace(/[^0-9,]/g, "").replace(",", ".")) : null
+      // Corrigir parsing: remover tudo exceto dígitos e vírgula, depois remover pontos de milhar
+      troco_para: formaPagamento === "dinheiro" && trocoPara ? 
+        parseFloat(trocoPara.replace(/[^\d,]/g, "").replace(/\./g, "").replace(",", ".")) : null
     }
   }
   

@@ -7,6 +7,13 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Pedido, StatusPedido, FiltrosPedidos } from '@/types/pedido'
 import { toast } from 'sonner'
+import { logger } from '@/lib/logger'
+
+interface RealtimePayload {
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE'
+  new?: { id: string; [key: string]: any }
+  old?: { id: string; [key: string]: any }
+}
 
 interface UsePedidosKanbanReturn {
   pedidos: Pedido[]
@@ -187,20 +194,53 @@ export function usePedidosKanban(filtrosIniciais: FiltrosPedidos = {}): UsePedid
           schema: 'public',
           table: 'pedidos'
         },
-        (payload) => {
-          console.log('Mudança em pedidos:', payload)
-          
-          if (payload.eventType === 'INSERT') {
-            // Recarregar para pegar dados da view
-            carregarPedidos()
-          } else if (payload.eventType === 'UPDATE') {
-            // CORREÇÃO: Recarregar da view ao invés de merge
-            // Evita sobrescrever campos agregados (itens_resumo, total_itens) com NULL
-            console.log('🔄 Realtime UPDATE detectado, recarregando da view...')
-            carregarPedidos()
-          } else if (payload.eventType === 'DELETE') {
-            // Remover pedido
+        async (payload: RealtimePayload) => {
+          logger.debug('Mudança em pedidos:', payload.eventType, payload.new?.id || payload.old?.id)
+
+          if (payload.eventType === 'INSERT' && payload.new?.id) {
+            // Novo pedido: buscar dados completos da view
+            try {
+              const { data: novoPedido } = await supabase
+                .from('vw_pedidos_kanban')
+                .select('*')
+                .eq('id', payload.new.id)
+                .single()
+
+              if (novoPedido) {
+                setPedidos(prev => [novoPedido, ...prev])
+                logger.debug('✅ Novo pedido adicionado ao Kanban:', payload.new.id)
+              }
+            } catch (error) {
+              logger.error('Erro ao buscar novo pedido:', error)
+              // Fallback: recarregar todos
+              carregarPedidos()
+            }
+          } else if (payload.eventType === 'UPDATE' && payload.new?.id) {
+            // Pedido atualizado: buscar apenas este pedido da view
+            try {
+              const { data: pedidoAtualizado } = await supabase
+                .from('vw_pedidos_kanban')
+                .select('*')
+                .eq('id', payload.new.id)
+                .single()
+
+              if (pedidoAtualizado) {
+                setPedidos(prev =>
+                  prev.map(p =>
+                    p.id === pedidoAtualizado.id ? pedidoAtualizado : p
+                  )
+                )
+                logger.debug('✅ Pedido atualizado no Kanban:', payload.new.id)
+              }
+            } catch (error) {
+              logger.error('Erro ao buscar pedido atualizado:', error)
+              // Fallback: recarregar todos
+              carregarPedidos()
+            }
+          } else if (payload.eventType === 'DELETE' && payload.old?.id) {
+            // Pedido removido: apenas filtrar da lista local
             setPedidos(prev => prev.filter(p => p.id !== payload.old.id))
+            logger.debug('✅ Pedido removido do Kanban:', payload.old.id)
           }
         }
       )

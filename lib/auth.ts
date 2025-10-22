@@ -7,12 +7,9 @@
  * validações robustas, error handling e sincronização automática
  */
 
+import { logger, logWithContext } from './logger'
 import { supabase } from './supabase'
-import type { User, Session, AuthError } from '@supabase/supabase-js'
-
-// ============================================================================
-// TYPES
-// ============================================================================
+import type { User, Session } from '@supabase/supabase-js'
 
 /**
  * Dados completos do cliente (sincronizado com public.clientes)
@@ -132,13 +129,6 @@ export function validateCEP(cep: string): boolean {
 }
 
 /**
- * Valida estado (2 letras maiúsculas)
- */
-export function validateEstado(estado: string): boolean {
-  return ESTADO_REGEX.test(estado.toUpperCase())
-}
-
-/**
  * Limpa telefone (remove caracteres não numéricos)
  */
 export function cleanTelefone(telefone: string): string {
@@ -194,47 +184,59 @@ function logError(context: string, error: any): void {
 /**
  * Sincroniza usuário do Supabase Auth com tabela public.clientes
  * Esta função é chamada automaticamente após signup/signin
+ * Usa a função RPC do banco para garantir sincronização correta
  */
 async function syncClienteFromAuth(user: User): Promise<void> {
   try {
-    // Verificar se cliente já existe
-    const { data: existingCliente } = await supabase
-      .from('clientes')
-      .select('id')
-      .eq('id', user.id)
-      .single()
-    
-    if (existingCliente) {
-      // Cliente já existe, apenas atualizar último acesso
-      await supabase
-        .from('clientes')
-        .update({ ultimo_acesso: new Date().toISOString() })
-        .eq('id', user.id)
-      return
-    }
-    
-    // Cliente não existe, criar novo registro
+    // Extrair dados do usuário
     const nome = user.user_metadata?.nome || user.email?.split('@')[0] || 'Cliente'
     const telefone = cleanTelefone(user.user_metadata?.telefone || '')
     
-    await supabase
-      .from('clientes')
-      .insert({
-        id: user.id,
-        email: user.email!,
-        nome: nome,
-        telefone: telefone || '00000000000', // Fallback para validação
-        email_verificado: !!user.email_confirmed_at,
-        ativo: true,
-        criado_em: user.created_at,
-        atualizado_em: new Date().toISOString(),
-        ultimo_acesso: new Date().toISOString()
-      })
+    // Chamar função RPC do banco de dados para sincronizar
+    const { data, error } = await supabase.rpc('sync_user_to_cliente', {
+      user_id: user.id,
+      user_email: user.email!,
+      user_name: nome,
+      user_phone: telefone || '00000000000'
+    })
     
-    console.log('✅ Cliente sincronizado:', user.id)
+    if (error) {
+      console.error('❌ Erro ao sincronizar cliente via RPC:', error)
+      throw error
+    }
+    
+    if (data?.success) {
+      console.log('✅ Cliente sincronizado via RPC:', user.id, '-', data.action)
+    } else {
+      console.warn('⚠️ Sincronização retornou erro:', data?.error)
+    }
   } catch (error) {
     logError('syncClienteFromAuth', error)
     // Não lançar erro - a sincronização pode falhar mas o login deve continuar
+    // Tentar método alternativo (insert direto) como fallback
+    try {
+      const nome = user.user_metadata?.nome || user.email?.split('@')[0] || 'Cliente'
+      const telefone = cleanTelefone(user.user_metadata?.telefone || '')
+      
+      await supabase
+        .from('clientes')
+        .upsert({
+          id: user.id,
+          email: user.email!,
+          nome: nome,
+          telefone: telefone || '00000000000',
+          email_verificado: !!user.email_confirmed_at,
+          ativo: true,
+          atualizado_em: new Date().toISOString(),
+          ultimo_acesso: new Date().toISOString()
+        }, {
+          onConflict: 'id'
+        })
+      
+      console.log('✅ Cliente sincronizado via fallback (upsert direto):', user.id)
+    } catch (fallbackError) {
+      console.error('❌ Erro no fallback de sincronização:', fallbackError)
+    }
   }
 }
 
@@ -395,13 +397,16 @@ export async function getSession(): Promise<AuthResponse<Session>> {
 export async function getUser(): Promise<AuthResponse<User>> {
   try {
     const { data: { user }, error } = await supabase.auth.getUser()
-    return { data: user, error }
+    if (error) {
+      return { data: user, error: error.message || String(error) }
+    }
+    return { data: user, error: null }
   } catch (error) {
     // Não logar erro se for apenas "session missing" (usuário não logado)
     if (error instanceof Error && !error.message.includes('Auth session missing')) {
-      console.error('[Auth Error - getUser]:', error)
+      logger.error('[Auth Error - getUser]:', error)
     }
-    return { data: null, error }
+    return { data: null, error: error instanceof Error ? error.message : String(error) }
   }
 }
 
@@ -416,32 +421,78 @@ export async function getUser(): Promise<AuthResponse<User>> {
  * @returns Dados do cliente ou erro
  */
 export async function getCliente(userId?: string): Promise<{ data: any; error: any }> {
+  const log = logWithContext('getCliente')
+
   try {
     let targetUserId = userId
-    
+
     if (!targetUserId) {
-      const { data: user } = await getUser()
+      const { data: user, error: userError } = await getUser()
+      if (userError) {
+        // Erro ao buscar usuário - logar mas não expor detalhes
+        logger.error('Erro ao buscar usuário autenticado:', userError)
+        return { data: null, error: new Error('Erro de autenticação') }
+      }
+
       if (!user) {
-        // Retornar silenciosamente sem logar erro (usuário não logado é esperado)
+        // Usuário não autenticado - não logar erro (situação normal)
         return { data: null, error: new Error('Usuário não autenticado') }
       }
       targetUserId = user.id
     }
 
+    // Validar UUID se fornecido
+    if (userId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+      logger.error('UUID inválido fornecido:', userId)
+      return { data: null, error: new Error('ID de usuário inválido') }
+    }
+
+    log('Buscando cliente:', targetUserId)
     const { data, error } = await supabase
       .from('clientes')
       .select('*')
       .eq('id', targetUserId)
       .single()
 
-    if (error) throw error
+    if (error) {
+      // Diferentes tipos de erro
+      if (error.code === 'PGRST116') {
+        // Cliente não encontrado
+        logger.warn('Cliente não encontrado no banco:', targetUserId)
+        return { data: null, error: new Error('Cliente não encontrado') }
+      } else if (error.code?.startsWith('PGRST')) {
+        // Erro de query Supabase
+        logger.error('Erro de query ao buscar cliente:', error)
+        return { data: null, error: new Error('Erro ao buscar dados do cliente') }
+      } else {
+        // Erro genérico
+        logger.error('Erro desconhecido ao buscar cliente:', error)
+        return { data: null, error: new Error('Erro interno do servidor') }
+      }
+    }
+
+    if (!data) {
+      logger.warn('Query retornou sucesso mas sem dados:', targetUserId)
+      return { data: null, error: new Error('Dados do cliente não encontrados') }
+    }
+
+    log('Cliente encontrado com sucesso:', targetUserId)
     return { data, error: null }
   } catch (error) {
-    // Não logar erro se for apenas "não autenticado" (esperado)
-    if (error instanceof Error && !error.message.includes('não autenticado')) {
-      console.error('[Auth Error - getCliente]:', error)
+    // Erros de rede, parsing, etc
+    logger.error('Erro crítico ao buscar cliente:', error)
+
+    // Verificar tipo de erro
+    if (error instanceof Error) {
+      if (error.message.includes('fetch') || error.message.includes('network')) {
+        return { data: null, error: new Error('Erro de conexão. Verifique sua internet.') }
+      } else if (error.message.includes('timeout')) {
+        return { data: null, error: new Error('Tempo limite excedido. Tente novamente.') }
+      }
     }
-    return { data: null, error }
+
+    // Erro genérico
+    return { data: null, error: new Error('Erro inesperado ao buscar dados') }
   }
 }
 
