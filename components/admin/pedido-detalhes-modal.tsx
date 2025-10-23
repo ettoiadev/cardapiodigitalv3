@@ -79,6 +79,142 @@ export function PedidoDetalhesModal({
   const [cancelando, setCancelando] = useState(false)
   const [atualizandoStatus, setAtualizandoStatus] = useState(false)
 
+  // Funções de carregamento definidas antes do useEffect
+  const carregarItens = useCallback(async () => {
+    if (!pedido?.id) {
+      logger.warn('carregarItens: pedido ou pedido.id é null/undefined', { pedido })
+      setItens([])
+      return
+    }
+
+    logger.info('🔍 Iniciando carregamento de itens', { 
+      pedidoId: pedido.id, 
+      numeroPedido: pedido.numero_pedido 
+    })
+
+    setLoadingItens(true)
+    
+    try {
+      const result = await logger.measureTime(
+        `Carregar itens do pedido ${pedido.numero_pedido}`,
+        async () => {
+          logger.debug('📡 Executando query na tabela pedido_itens', { 
+            pedidoId: pedido.id,
+            pedidoIdType: typeof pedido.id 
+          })
+
+          const { data, error } = await supabase
+            .from('pedido_itens')
+            .select(`
+              id,
+              pedido_id,
+              produto_id,
+              nome_produto,
+              tamanho,
+              sabores,
+              quantidade,
+              preco_unitario,
+              preco_total,
+              adicionais,
+              borda_recheada,
+              observacoes,
+              created_at
+            `)
+            .eq('pedido_id', pedido.id)
+            .order('created_at', { ascending: true })
+
+          logger.debug('📊 Resposta da query', { 
+            hasError: !!error, 
+            dataLength: data?.length || 0,
+            errorCode: error?.code,
+            errorMessage: error?.message,
+            errorDetails: error?.details 
+          })
+
+          if (error) {
+            logger.error('❌ Erro na query Supabase', {
+              error,
+              pedidoId: pedido.id,
+              errorCode: error.code,
+              errorMessage: error.message
+            })
+            throw new Error(`Erro ao buscar itens: ${error.message}`)
+          }
+
+          // Validar e limpar dados JSONB
+          const itensValidados = (data || []).map(item => ({
+            ...item,
+            sabores: item.sabores || [],
+            adicionais: item.adicionais || [],
+            borda_recheada: item.borda_recheada || null
+          }))
+
+          logger.info(`✅ Query executada com sucesso: ${itensValidados.length} itens encontrados`)
+          
+          return itensValidados
+        }
+      )
+
+      logger.info(`📦 ${result.length} itens carregados para o estado`)
+      setItens(result)
+
+      // Log adicional se não houver itens
+      if (result.length === 0) {
+        logger.warn('⚠️ ATENÇÃO: Nenhum item encontrado para este pedido!', {
+          pedidoId: pedido.id,
+          numeroPedido: pedido.numero_pedido,
+          sugestao: 'Verificar se itens existem na tabela pedido_itens com este pedido_id'
+        })
+        toast.warning('Este pedido não possui itens cadastrados')
+      }
+
+    } catch (error) {
+      logger.error('💥 Erro crítico ao carregar itens', {
+        error,
+        errorMessage: error instanceof Error ? error.message : 'Erro desconhecido',
+        pedidoId: pedido.id
+      })
+      toast.error('Erro ao carregar itens do pedido. Verifique o console para mais detalhes.')
+      setItens([])
+    } finally {
+      setLoadingItens(false)
+      logger.debug('🏁 Carregamento de itens finalizado', { 
+        totalItens: itens.length,
+        pedidoId: pedido.id 
+      })
+    }
+  }, [pedido])
+
+  const carregarHistorico = useCallback(async () => {
+    if (!pedido) return
+
+    setLoadingHistorico(true)
+    
+    try {
+      const result = await logger.measureTime(
+        `Carregar histórico do pedido ${pedido?.numero_pedido}`,
+        async () => {
+          const { data, error } = await supabase
+            .from('pedido_historico')
+            .select('*')
+            .eq('pedido_id', pedido.id)
+            .order('created_at', { ascending: false })
+
+          if (error) throw error
+          return data || []
+        }
+      )
+
+      logger.info(`${result.length} registros de histórico carregados`)
+      setHistorico(result)
+    } catch (error) {
+      logger.warn('Erro ao carregar histórico (não crítico)', error)
+      setHistorico([])
+    } finally {
+      setLoadingHistorico(false)
+    }
+  }, [pedido])
+
   useEffect(() => {
     if (!pedido?.id || !open) {
       return
@@ -103,70 +239,9 @@ export function PedidoDetalhesModal({
       cancelled = true
       logger.debug('Modal fechado, cancelando requisições')
     }
-  }, [pedido?.id, open])
+  }, [pedido?.id, open, carregarItens, carregarHistorico])
 
-  const carregarItens = useCallback(async () => {
-    if (!pedido) return
-
-    setLoadingItens(true)
-    
-    try {
-      const result = await logger.measureTime(
-        `Carregar itens do pedido ${pedido?.numero_pedido}`,
-        async () => {
-          const { data, error } = await supabase
-            .from('pedido_itens')
-            .select('*')
-            .eq('pedido_id', pedido!.id)
-            .order('created_at', { ascending: true })
-
-          if (error) throw error
-          return data || []
-        }
-      )
-
-      logger.info(`${result.length} itens carregados`)
-      setItens(result)
-    } catch (error) {
-      logger.error('Erro ao carregar itens', error)
-      toast.error('Erro ao carregar itens do pedido')
-      setItens([])
-    } finally {
-      setLoadingItens(false)
-    }
-  }, [pedido?.id, pedido?.numero_pedido])
-
-  const carregarHistorico = useCallback(async () => {
-    if (!pedido) return
-
-    setLoadingHistorico(true)
-    
-    try {
-      const result = await logger.measureTime(
-        `Carregar histórico do pedido ${pedido?.numero_pedido}`,
-        async () => {
-          const { data, error } = await supabase
-            .from('pedido_historico')
-            .select('*')
-            .eq('pedido_id', pedido!.id)
-            .order('created_at', { ascending: false })
-
-          if (error) throw error
-          return data || []
-        }
-      )
-
-      logger.info(`${result.length} registros de histórico carregados`)
-      setHistorico(result)
-    } catch (error) {
-      logger.warn('Erro ao carregar histórico (não crítico)', error)
-      setHistorico([])
-    } finally {
-      setLoadingHistorico(false)
-    }
-  }, [pedido?.id, pedido?.numero_pedido])
-
-  const atualizarStatusPedido = async (novoStatus: StatusPedido, observacao?: string) => {
+  const atualizarStatusPedido = async (novoStatus: StatusPedido, observacao?: string, motivo?: string) => {
     if (!pedido) {
       logger.warn('Tentativa de atualizar status sem pedido')
       return false
@@ -189,13 +264,18 @@ export function PedidoDetalhesModal({
     })
 
     try {
-      // Atualizar status
+      // Atualizar status (e motivo, se cancelado) em uma ÚNICA operação
+      const payload: any = {
+        status: novoStatus,
+        updated_at: new Date().toISOString()
+      }
+      if (novoStatus === 'cancelado') {
+        payload.motivo_cancelamento = (motivo || motivoCancelamento || '').trim() || null
+      }
+
       const { error: updateError } = await supabase
         .from('pedidos')
-        .update({
-          status: novoStatus,
-          updated_at: new Date().toISOString()
-        })
+        .update(payload)
         .eq('id', pedido.id)
 
       if (updateError) throw updateError
@@ -207,7 +287,7 @@ export function PedidoDetalhesModal({
           pedido_id: pedido.id,
           status_anterior: pedido.status,
           status_novo: novoStatus,
-          observacao: observacao || `Status alterado para ${novoStatus}`,
+          observacao: observacao || (novoStatus === 'cancelado' && (motivo || motivoCancelamento) ? `Cancelado: ${(motivo || motivoCancelamento)}` : `Status alterado para ${novoStatus}`),
           alterado_por: 'admin'
         })
 
@@ -217,8 +297,12 @@ export function PedidoDetalhesModal({
       }
 
       logger.info('Status atualizado com sucesso')
-      toast.success(`Pedido movido para "${novoStatus}"`)
+      toast.success(
+        novoStatus === 'cancelado' ? 'Pedido cancelado com sucesso' : `Pedido movido para "${novoStatus}"`
+      )
       onStatusChange?.()
+      // Fechar dialogs de forma robusta
+      setShowCancelDialog(false)
       onClose()
       return true
     } catch (error) {
@@ -229,28 +313,22 @@ export function PedidoDetalhesModal({
   }
 
   const handleCancelar = async () => {
-    if (!pedido || !motivoCancelamento.trim()) {
+    if (!pedido) {
+      toast.error('Pedido inválido')
+      return
+    }
+    const motivo = (motivoCancelamento || '').trim()
+    if (!motivo) {
       toast.error('Informe o motivo do cancelamento')
       return
     }
 
-    logger.info('Cancelando pedido', { pedidoId: pedido.id, motivo: motivoCancelamento })
+    logger.info('Cancelando pedido', { pedidoId: pedido.id, motivo })
     setCancelando(true)
     
     try {
-      const sucesso = await atualizarStatusPedido('cancelado', `Cancelado: ${motivoCancelamento}`)
+      const sucesso = await atualizarStatusPedido('cancelado', `Cancelado: ${motivo}`, motivo)
       if (sucesso) {
-        // Atualizar motivo de cancelamento
-        const { error } = await supabase
-          .from('pedidos')
-          .update({ motivo_cancelamento: motivoCancelamento })
-          .eq('id', pedido.id)
-
-        if (error) {
-          logger.error('Erro ao salvar motivo de cancelamento', error)
-        }
-
-        setShowCancelDialog(false)
         setMotivoCancelamento('')
       }
     } catch (error) {
@@ -461,13 +539,13 @@ export function PedidoDetalhesModal({
                               <h4 className="text-lg font-bold text-gray-900">
                                 {(() => {
                                   // Verificar se é pizza meio a meio (múltiplos sabores)
-                                  if (validateSabores(item.sabores) && item.sabores.length > 1) {
+                                  if (validateSabores(item.sabores) && item.sabores && item.sabores.length > 1) {
                                     return (
                                       <span>
                                         {item.sabores.map((sabor, idx) => (
                                           <span key={idx}>
                                             {idx > 0 && <span className="text-gray-400"> + </span>}
-                                            1/{item.sabores.length} {sabor}
+                                            1/{item.sabores!.length} {sabor}
                                           </span>
                                         ))}
                                       </span>
@@ -486,7 +564,7 @@ export function PedidoDetalhesModal({
                             )}
 
                             {/* Sabores (se for meio a meio) */}
-                            {validateSabores(item.sabores) && item.sabores.length > 1 && (
+                            {validateSabores(item.sabores) && item.sabores && item.sabores.length > 1 && (
                               <div className="mb-2">
                                 <p className="text-sm font-semibold text-gray-700 mb-1">Sabores:</p>
                                 <div className="flex flex-wrap gap-1">
